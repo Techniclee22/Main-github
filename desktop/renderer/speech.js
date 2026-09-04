@@ -1,16 +1,22 @@
 (() => {
   function preferNaturalVoice(voices) {
-    const ranked = [...voices].sort((a, b) => {
+    // English only — never fall through to Italian/French/etc. system voices.
+    const english = voices.filter((v) =>
+      (v.lang || "").toLowerCase().startsWith("en"),
+    );
+    const pool = english.length ? english : voices;
+    const ranked = [...pool].sort((a, b) => {
       const score = (voice) => {
         const name = `${voice.name} ${voice.voiceURI}`.toLowerCase();
         let value = 0;
         if (/premium|enhanced|neural|natural|super/.test(name)) value += 12;
-        if (/zoe|ava|nora|samantha|allison|susan|nicky|tom|moira|daniel|karen|alex/.test(name)) {
-          value += 5;
+        if (/samantha|zoe|ava|allison|susan|nicky|tom|moira|daniel|karen|alex|victoria/.test(name)) {
+          value += 6;
         }
         if (/google|microsoft|siri/.test(name)) value += 3;
         if (voice.localService) value += 2;
-        if (voice.lang?.toLowerCase().startsWith("en")) value += 4;
+        if ((voice.lang || "").toLowerCase().startsWith("en-us")) value += 5;
+        else if ((voice.lang || "").toLowerCase().startsWith("en")) value += 4;
         if (/compact|robot|novelty|whisper|zarvox|trinoids|bad news|boing|bubbles|cellos/.test(name)) {
           value -= 20;
         }
@@ -197,6 +203,7 @@
         const voices = await waitForVoices();
         const voice = preferNaturalVoice(voices);
         utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "en-US";
         if (voice) utterance.voice = voice;
         utterance.rate = 0.96;
         utterance.pitch = 1;

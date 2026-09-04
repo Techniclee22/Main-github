@@ -4,7 +4,6 @@
   const pauseBtn = document.getElementById("pauseBtn");
   const resumeBtn = document.getElementById("resumeBtn");
   const stopBtn = document.getElementById("stopBtn");
-  const followBtn = document.getElementById("followBtn");
   const picker = document.getElementById("picker");
   const pickerList = document.getElementById("pickerList");
   const refreshBtn = document.getElementById("refreshBtn");
@@ -14,25 +13,13 @@
 
   let selected = { id: null, name: null };
   let pickerOpen = false;
-  let currentText = "";
 
   const speech = window.ReadToMeSpeech.create({
     onState(state) {
       applyPlaybackUi(state);
-      window.readToMe.sendPlaybackState(state);
-    },
-    onBoundary(boundary) {
-      window.readToMe.sendPlaybackState({
-        type: "boundary",
-        charIndex: boundary.charIndex,
-        charLength: boundary.charLength || 0,
-        wordIndex: boundary.wordIndex,
-      });
     },
     onVoiceInfo(info) {
-      if (info?.voice) {
-        setStatus(`Voice: ${info.voice}`);
-      }
+      if (info?.voice) setStatus(`Voice: ${info.voice}`);
     },
   });
 
@@ -118,25 +105,20 @@
     setStatus("Reading the page…");
     try {
       const result = await window.readToMe.readSelectedWindow();
-      currentText = result.text;
-      await window.readToMe.openReader();
-      // Give the follow-along panel a beat to paint the text.
-      await new Promise((r) => setTimeout(r, 200));
-
       const cols =
         result.columns > 1
           ? ` · ${result.columns} columns (left, then right)`
           : "";
-      setStatus(`Preparing natural voice${cols}…`);
-      const audio = await window.readToMe.synthesizeSpeech(currentText);
+      setStatus(`Preparing English voice${cols}…`);
+      const audio = await window.readToMe.synthesizeSpeech(result.text);
       if (audio?.engine === "neural") {
-        setStatus("Speaking with natural cloud voice…");
+        setStatus("Speaking (natural English)…");
       } else if (audio?.engine === "macos-say") {
-        setStatus(`Speaking with ${audio.voice}…`);
+        setStatus(`Speaking (${audio.voice})…`);
       } else {
         setStatus("Speaking…");
       }
-      await speech.speak(currentText, audio);
+      await speech.speak(result.text, audio);
       setStatus("");
     } catch (error) {
       setStatus(error?.message || "Could not read that window");
@@ -146,34 +128,11 @@
     }
   });
 
-  pauseBtn.addEventListener("click", () => {
-    speech.pause();
-    window.readToMe.sendPlaybackCommand("pause");
-  });
-
-  resumeBtn.addEventListener("click", () => {
-    speech.resume();
-    window.readToMe.sendPlaybackCommand("resume");
-  });
-
+  pauseBtn.addEventListener("click", () => speech.pause());
+  resumeBtn.addEventListener("click", () => speech.resume());
   stopBtn.addEventListener("click", () => {
     speech.stop();
-    window.readToMe.sendPlaybackCommand("stop");
     setStatus("");
-  });
-
-  followBtn.addEventListener("click", () => {
-    void window.readToMe.openReader();
-  });
-
-  window.readToMe.onPlaybackCommand((command) => {
-    if (command === "pause") speech.pause();
-    if (command === "resume") speech.resume();
-    if (command === "stop") speech.stop();
-  });
-
-  window.readToMe.onReadingText((payload) => {
-    currentText = payload.text || currentText;
   });
 
   applyPlaybackUi("idle");

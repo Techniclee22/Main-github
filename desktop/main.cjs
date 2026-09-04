@@ -13,18 +13,18 @@ const { synthesizeSpeech } = require("./lib/tts.cjs");
 
 /** @type {BrowserWindow | null} */
 let pillWindow = null;
-/** @type {BrowserWindow | null} */
-let readerWindow = null;
 /** @type {import('tesseract.js').Worker | null} */
 let ocrWorker = null;
 /** @type {string | null} */
 let selectedSourceId = null;
-/** @type {{ text: string, title: string, columns: number } | null} */
-let lastReading = null;
 
 async function getOcrWorker() {
   if (!ocrWorker) {
     ocrWorker = await createWorker("eng");
+    await ocrWorker.setParameters({
+      tessedit_pageseg_mode: "3",
+      preserve_interword_spaces: "1",
+    });
   }
   return ocrWorker;
 }
@@ -68,46 +68,6 @@ function createPillWindow() {
   });
 }
 
-function createReaderWindow() {
-  if (readerWindow && !readerWindow.isDestroyed()) {
-    readerWindow.focus();
-    return readerWindow;
-  }
-
-  const display = screen.getPrimaryDisplay();
-  readerWindow = new BrowserWindow({
-    width: 520,
-    height: 720,
-    x: Math.round(display.workArea.x + display.workArea.width - 560),
-    y: Math.round(display.workArea.y + 60),
-    title: "Read to Me — follow along",
-    alwaysOnTop: true,
-    show: false,
-    webPreferences: {
-      preload: path.join(__dirname, "preload.cjs"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
-  });
-
-  readerWindow.setAlwaysOnTop(true, "floating");
-  readerWindow.loadFile(path.join(__dirname, "renderer", "reader.html"));
-  readerWindow.once("ready-to-show", () => readerWindow?.show());
-  readerWindow.on("closed", () => {
-    readerWindow = null;
-  });
-  return readerWindow;
-}
-
-function whenReaderReady() {
-  const win = createReaderWindow();
-  if (!win.webContents.isLoading()) return Promise.resolve(win);
-  return new Promise((resolve) => {
-    win.webContents.once("did-finish-load", () => resolve(win));
-  });
-}
-
 async function listWindows() {
   const sources = await desktopCapturer.getSources({
     types: ["window"],
@@ -131,7 +91,7 @@ async function captureSelectedWindow() {
 
   const sources = await desktopCapturer.getSources({
     types: ["window"],
-    thumbnailSize: { width: 2400, height: 3200 },
+    thumbnailSize: { width: 2800, height: 3600 },
   });
 
   const match = sources.find((source) => source.id === selectedSourceId);
@@ -141,7 +101,6 @@ async function captureSelectedWindow() {
     );
   }
 
-  // Avoid capturing a nearly blank thumbnail.
   if (match.thumbnail.isEmpty()) {
     throw new Error("Could not capture that window. Bring it to the front and try again.");
   }
@@ -151,11 +110,9 @@ async function captureSelectedWindow() {
 
 async function ocrPng(pngBuffer) {
   const worker = await getOcrWorker();
-  // Touch nativeImage so invalid buffers fail early with a clear error.
   nativeImage.createFromBuffer(pngBuffer);
   const result = await worker.recognize(pngBuffer);
-  const layout = textFromOcrPage(result.data);
-  return layout;
+  return textFromOcrPage(result.data);
 }
 
 app.whenReady().then(() => {
@@ -194,28 +151,11 @@ ipcMain.handle("read-selected-window", async () => {
     );
   }
 
-  const reader = await whenReaderReady();
-  lastReading = {
-    text,
-    title: name,
-    columns: columns || 1,
-  };
-  reader.webContents.send("reading-text", lastReading);
-  pillWindow?.webContents.send("reading-text", lastReading);
-
   return { text, title: name, columns: columns || 1 };
 });
 
 ipcMain.handle("synthesize-speech", async (_event, text) => {
   return synthesizeSpeech(text);
-});
-
-ipcMain.handle("open-reader", async () => {
-  const reader = await whenReaderReady();
-  if (lastReading) {
-    reader.webContents.send("reading-text", lastReading);
-  }
-  return { ok: true };
 });
 
 ipcMain.handle("resize-pill", async (_event, { width, height }) => {
@@ -228,22 +168,4 @@ ipcMain.handle("resize-pill", async (_event, { width, height }) => {
     width,
     height,
   });
-});
-
-ipcMain.on("playback-state", (_event, state) => {
-  if (pillWindow && !pillWindow.isDestroyed()) {
-    pillWindow.webContents.send("playback-state", state);
-  }
-  if (readerWindow && !readerWindow.isDestroyed()) {
-    readerWindow.webContents.send("playback-state", state);
-  }
-});
-
-ipcMain.on("playback-command", (_event, command) => {
-  if (pillWindow && !pillWindow.isDestroyed()) {
-    pillWindow.webContents.send("playback-command", command);
-  }
-  if (readerWindow && !readerWindow.isDestroyed()) {
-    readerWindow.webContents.send("playback-command", command);
-  }
 });

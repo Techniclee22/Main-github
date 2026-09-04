@@ -1,8 +1,8 @@
 # Read to Me
 
-A **floating pill on your Mac desktop**. Pick an open window (like a PDF in Preview), tap **Read**, and hear it spoken in a natural voice — with a follow-along panel so you can read with it.
+A **floating pill on your Mac desktop**. Pick an open window (like a PDF in Preview), tap **Read**, and hear it spoken in a natural English voice.
 
-This is **not** a website you paste text into. It sits on top of whatever you already have open.
+This is **not** a website you paste text into. It sits on top of whatever you already have open. You keep looking at the page — there is no separate follow-along popup.
 
 ## What you need
 
@@ -30,6 +30,7 @@ npm install
 cd ~/Main-github/desktop
 npm start
 ```
+
 A small pill appears near the bottom of your screen.
 
 ## How to use it (with your PDF)
@@ -39,23 +40,20 @@ A small pill appears near the bottom of your screen.
 3. Click the Preview / PDF window in the list
 4. Click **Read**
 5. Allow **Screen Recording** if macOS asks (System Settings → Privacy & Security → Screen Recording → enable for Electron / Read to Me)
-6. A **Follow along** panel opens with the text; the voice reads it aloud
+6. Keep looking at your PDF — the pill reads it aloud
 7. Use **Pause / Resume / Stop** on the pill
 
 Tip: Zoom the PDF a little if OCR misses small text. Turn pages, click **Read** again.
 
-## Better / more natural voices on Mac
+## Natural English voice
 
-The app prefers **Premium / Enhanced** macOS voices (Zoe, Ava, Samantha, …) via the system `say` engine — much less robotic than the default browser voice.
+The app uses **English-only** voices:
 
-1. System Settings → Accessibility → Spoken Content → System Voice  
-   (or System Settings → Accessibility → Live Speech, depending on macOS version)
-2. Download an **Enhanced** / **Premium** voice (e.g. Ava, Zoe, Samantha Enhanced)
-3. Restart the app (`npm start`) so it can pick up the new voice
+1. System Settings → Accessibility → Spoken Content → System Voice
+2. Download an **Enhanced** / **Premium** English voice (Samantha Enhanced, Ava, Zoe, …)
+3. Restart the app (`npm start`)
 
 ### Optional: cloud neural voice
-
-For the most natural sound, set an API key before starting:
 
 ```bash
 export OPENAI_API_KEY="sk-..."   # or AI_GATEWAY_API_KEY for Vercel AI Gateway
@@ -63,11 +61,9 @@ cd ~/Main-github/desktop
 npm start
 ```
 
-With a key present, Read uses a high-quality neural voice (`tts-1-hd`). Without one, it falls back to your Mac Premium/Enhanced voice.
-
 ## Two-column PDFs
 
-Handbooks and magazines are read **left column top→bottom, then right column** — not straight across the page.
+Handbooks and magazines are read **left column top→bottom, then right column** — not straight across the page. Decorative chapter headers are skipped when possible.
 
 ## Project layout
 
@@ -83,6 +79,7 @@ Handbooks and magazines are read **left column top→bottom, then right column**
 | Empty window list | Open the PDF first, click Refresh in the picker |
 | “No readable text” | Zoom in on the page, make sure the text is visible, try Read again |
 | Can’t see other apps | Enable Screen Recording for the app in macOS Privacy settings |
+| Voice sounds foreign / wrong language | Install an English Enhanced voice; restart the app |
 | `npm` not found | Install Node.js LTS from nodejs.org, then open a **new** Terminal |
 
 ## Architecture

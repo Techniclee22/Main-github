@@ -1,42 +1,88 @@
 /**
  * Rebuild reading order from Tesseract word boxes.
- * Two-column pages (handbooks, magazines) are read left column
- * top-to-bottom, then right column — not straight across.
+ * Two-column pages are read left column top→bottom, then right.
+ * Decorative headers and low-confidence OCR junk are dropped first.
  */
 
 function wordCenterX(word) {
   return (word.bbox.x0 + word.bbox.x1) / 2;
 }
 
-/**
- * Find a vertical gutter by looking for the emptiest x-band
- * between dense left/right word clusters.
- */
-function findGutterSplit(words, pageWidth) {
-  if (words.length < 24) return null;
+function wordCenterY(word) {
+  return (word.bbox.y0 + word.bbox.y1) / 2;
+}
 
-  const bins = 48;
+function letterRatio(text) {
+  const letters = (text.match(/[A-Za-z]/g) || []).length;
+  return letters / Math.max(1, text.length);
+}
+
+function isReadableWord(word) {
+  const text = (word.text || "").trim();
+  if (!text) return false;
+  if (text.length === 1 && !/[A-Za-z0-9]/.test(text)) return false;
+  if (letterRatio(text) < 0.5) return false;
+  if (typeof word.confidence === "number" && word.confidence < 50) return false;
+  // Ornamental / symbol garbage from chapter art.
+  if (/^[\W\d_|\\/~^=<>{}[\]()]+$/.test(text)) return false;
+  if (/[{}|\\~^=]/.test(text) && letterRatio(text) < 0.7) return false;
+  return true;
+}
+
+/**
+ * Drop the decorative top band when it's noisier than the body text.
+ */
+function dropNoisyHeader(words, pageHeight) {
+  if (words.length < 20 || !pageHeight) return words;
+
+  const cutY = pageHeight * 0.2;
+  const header = words.filter((w) => wordCenterY(w) < cutY);
+  const body = words.filter((w) => wordCenterY(w) >= cutY);
+  if (body.length < 16) return words;
+
+  const headerAvg =
+    header.reduce((sum, w) => sum + (w.confidence ?? 70), 0) /
+    Math.max(1, header.length);
+  const bodyAvg =
+    body.reduce((sum, w) => sum + (w.confidence ?? 70), 0) /
+    Math.max(1, body.length);
+  const headerLetter =
+    header.reduce((sum, w) => sum + letterRatio(w.text || ""), 0) /
+    Math.max(1, header.length);
+
+  if (header.length && (headerAvg + 6 < bodyAvg || headerLetter < 0.65)) {
+    return body;
+  }
+  return words;
+}
+
+function findGutterSplit(words, pageWidth) {
+  if (words.length < 20 || pageWidth <= 0) return null;
+
+  const bins = 64;
   const counts = new Array(bins).fill(0);
   for (const word of words) {
-    const c = wordCenterX(word);
-    const idx = Math.min(bins - 1, Math.max(0, Math.floor((c / pageWidth) * bins)));
+    const idx = Math.min(
+      bins - 1,
+      Math.max(0, Math.floor((wordCenterX(word) / pageWidth) * bins)),
+    );
     counts[idx] += 1;
   }
 
-  // Ignore outer margins; look for a quiet band in the middle 50%.
-  const start = Math.floor(bins * 0.25);
-  const end = Math.ceil(bins * 0.75);
+  const start = Math.floor(bins * 0.28);
+  const end = Math.ceil(bins * 0.72);
   let bestIdx = -1;
   let bestScore = Infinity;
 
   for (let i = start; i < end; i += 1) {
-    const window =
+    const quiet =
       counts[i - 1] + counts[i] + counts[Math.min(bins - 1, i + 1)];
-    // Prefer a true gap: low local count and high density on both sides.
     const leftDense = counts.slice(0, i).reduce((a, b) => a + b, 0);
     const rightDense = counts.slice(i + 1).reduce((a, b) => a + b, 0);
-    if (leftDense < 10 || rightDense < 10) continue;
-    const score = window - Math.min(leftDense, rightDense) * 0.02;
+    if (leftDense < 12 || rightDense < 12) continue;
+    const balance =
+      Math.abs(leftDense - rightDense) / (leftDense + rightDense);
+    const score = quiet * 3 + balance * 18;
     if (score < bestScore) {
       bestScore = score;
       bestIdx = i;
@@ -44,11 +90,13 @@ function findGutterSplit(words, pageWidth) {
   }
 
   if (bestIdx < 0) return null;
-  // Require the quiet band to actually be quiet relative to page density.
   const quiet =
-    counts[bestIdx - 1] + counts[bestIdx] + counts[Math.min(bins - 1, bestIdx + 1)];
+    counts[bestIdx - 1] +
+    counts[bestIdx] +
+    counts[Math.min(bins - 1, bestIdx + 1)];
   const avg = words.length / bins;
-  if (quiet > avg * 1.2) return null;
+  // Mistborn pages sometimes have art in the gutter — allow a bit of noise.
+  if (quiet > avg * 2.4) return null;
 
   return ((bestIdx + 0.5) / bins) * pageWidth;
 }
@@ -56,9 +104,17 @@ function findGutterSplit(words, pageWidth) {
 function clusterColumns(words, pageWidth) {
   if (!words.length) return [words];
 
-  const split = findGutterSplit(words, pageWidth) ?? pageWidth / 2;
-  const gutter = pageWidth * 0.045;
+  let split = findGutterSplit(words, pageWidth);
+  if (split == null) {
+    // Force a mid-page split when both halves look like real columns.
+    const mid = pageWidth / 2;
+    const left = words.filter((w) => wordCenterX(w) < mid);
+    const right = words.filter((w) => wordCenterX(w) >= mid);
+    if (left.length >= 18 && right.length >= 18) return [left, right];
+    return [words];
+  }
 
+  const gutter = pageWidth * 0.03;
   const left = [];
   const right = [];
   const middle = [];
@@ -70,11 +126,9 @@ function clusterColumns(words, pageWidth) {
     else middle.push(word);
   }
 
-  // Only treat as two columns when both sides have real content.
-  if (left.length >= 10 && right.length >= 10) {
+  if (left.length >= 12 && right.length >= 12) {
     for (const word of middle) {
-      const c = wordCenterX(word);
-      if (c < split) left.push(word);
+      if (wordCenterX(word) < split) left.push(word);
       else right.push(word);
     }
     return [left, right];
@@ -85,15 +139,32 @@ function clusterColumns(words, pageWidth) {
 
 function sortReadingOrder(words) {
   return [...words].sort((a, b) => {
-    const ay = (a.bbox.y0 + a.bbox.y1) / 2;
-    const by = (b.bbox.y0 + b.bbox.y1) / 2;
+    const ay = wordCenterY(a);
+    const by = wordCenterY(b);
     const lineThreshold = Math.max(
       10,
       (a.bbox.y1 - a.bbox.y0 + (b.bbox.y1 - b.bbox.y0)) / 2,
     );
-    if (Math.abs(ay - by) > lineThreshold * 0.7) return ay - by;
+    if (Math.abs(ay - by) > lineThreshold * 0.65) return ay - by;
     return a.bbox.x0 - b.bbox.x0;
   });
+}
+
+function lineLooksLikeJunk(line) {
+  const text = line.trim();
+  if (!text) return true;
+  if (letterRatio(text) < 0.58) return true;
+  const tokens = text.split(/\s+/);
+  if (tokens.length <= 2 && text.length < 14 && !/^[A-Z][a-z]{2,}/.test(text)) {
+    return true;
+  }
+  if (/[{}|\\~^=]{2,}/.test(text)) return true;
+  if (/\bCHAPTER\s*\d+/i.test(text) && tokens.length <= 6) return true;
+  // Short all-caps fragments from decorative headers.
+  if (tokens.length <= 3 && text === text.toUpperCase() && text.length < 18) {
+    return true;
+  }
+  return false;
 }
 
 function wordsToText(words) {
@@ -106,9 +177,9 @@ function wordsToText(words) {
   for (const word of ordered) {
     const text = (word.text || "").trim();
     if (!text) continue;
-    const y = (word.bbox.y0 + word.bbox.y1) / 2;
+    const y = wordCenterY(word);
     const lineHeight = Math.max(12, word.bbox.y1 - word.bbox.y0);
-    if (lastY != null && Math.abs(y - lastY) > lineHeight * 0.75) {
+    if (lastY != null && Math.abs(y - lastY) > lineHeight * 0.7) {
       lines.push(current.join(" "));
       current = [];
     }
@@ -116,32 +187,83 @@ function wordsToText(words) {
     lastY = y;
   }
   if (current.length) lines.push(current.join(" "));
-  return lines.join("\n").trim();
+
+  return lines
+    .filter((line) => !lineLooksLikeJunk(line))
+    .join("\n")
+    .trim();
+}
+
+function sanitizeForSpeech(text) {
+  return text
+    .replace(/[^\S\n]+/g, " ")
+    .replace(/[^\w\s.,;:'"!?()\-\n]/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ ]{2,}/g, " ")
+    .trim();
+}
+
+/**
+ * Drop leading decorative / OCR-garbage lines until real prose begins.
+ */
+function trimLeadingJunk(text) {
+  const lines = text.split("\n");
+  let start = 0;
+  while (start < lines.length) {
+    const line = lines[start].trim();
+    const words = line.split(/\s+/).filter(Boolean);
+    const looksLikeProse =
+      words.length >= 5 &&
+      letterRatio(line) >= 0.7 &&
+      /[a-z]/.test(line) &&
+      !lineLooksLikeJunk(line);
+    if (looksLikeProse) break;
+    start += 1;
+  }
+  // If we never found prose, keep original (better than empty).
+  if (start >= lines.length) return text;
+  return lines.slice(start).join("\n").trim();
 }
 
 /**
  * @param {import('tesseract.js').Page} page
  */
 function textFromOcrPage(page) {
-  const words = (page.words || []).filter((w) => (w.text || "").trim());
+  const pageWidth = Math.max(
+    page.width || 0,
+    ...(page.words || []).map((w) => w.bbox?.x1 || 0),
+    1,
+  );
+  const pageHeight = Math.max(
+    page.height || 0,
+    ...(page.words || []).map((w) => w.bbox?.y1 || 0),
+    1,
+  );
+
+  let words = (page.words || []).filter(isReadableWord);
+  words = dropNoisyHeader(words, pageHeight);
+
   if (words.length < 8) {
     return {
-      text: (page.text || "").trim(),
+      text: sanitizeForSpeech(trimLeadingJunk((page.text || "").trim())),
       columns: 1,
     };
   }
 
-  const pageWidth = Math.max(
-    page.width || 0,
-    ...words.map((w) => w.bbox.x1),
-  );
-
   const columns = clusterColumns(words, pageWidth);
   const parts = columns.map((col) => wordsToText(col)).filter(Boolean);
   return {
-    text: parts.join("\n\n"),
+    text: sanitizeForSpeech(trimLeadingJunk(parts.join("\n\n"))),
     columns: columns.length,
   };
 }
 
-module.exports = { textFromOcrPage, clusterColumns, wordsToText, findGutterSplit };
+module.exports = {
+  textFromOcrPage,
+  clusterColumns,
+  wordsToText,
+  findGutterSplit,
+  isReadableWord,
+  sanitizeForSpeech,
+};

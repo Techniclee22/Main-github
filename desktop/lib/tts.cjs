@@ -6,21 +6,23 @@ const { promisify } = require("util");
 
 const execFileAsync = promisify(execFile);
 
+/** English-only Premium/Enhanced voices, preferred first. */
 const PREFERRED_SAY_VOICES = [
-  "Zoe (Premium)",
-  "Zoe",
-  "Ava (Premium)",
-  "Ava",
-  "Nora (Premium)",
-  "Nora",
   "Samantha (Enhanced)",
   "Samantha (Premium)",
-  "Samantha",
-  "Nicky (Premium)",
+  "Zoe (Premium)",
+  "Ava (Premium)",
   "Allison (Enhanced)",
   "Susan (Enhanced)",
   "Tom (Enhanced)",
+  "Nicky (Premium)",
+  "Samantha",
   "Alex",
+  "Victoria",
+  "Daniel",
+  "Karen",
+  "Moira",
+  "Fiona",
 ];
 
 function chunkText(text, maxChars = 1400) {
@@ -43,6 +45,9 @@ function chunkText(text, maxChars = 1400) {
   return chunks;
 }
 
+/**
+ * @returns {Promise<{name: string, locale: string}[]>}
+ */
 async function listSayVoices() {
   if (process.platform !== "darwin") return [];
   try {
@@ -52,8 +57,10 @@ async function listSayVoices() {
     return stdout
       .split("\n")
       .map((line) => {
-        const match = line.match(/^(.+?)\s+[a-z]{2}_[A-Z]{2}/);
-        return match ? match[1].trim() : null;
+        // "Samantha (Enhanced) en_US    # Hello! ..."
+        const match = line.match(/^(.+?)\s+([a-z]{2}_[A-Z]{2})\b/);
+        if (!match) return null;
+        return { name: match[1].trim(), locale: match[2] };
       })
       .filter(Boolean);
   } catch {
@@ -63,35 +70,49 @@ async function listSayVoices() {
 
 async function pickSayVoice() {
   const available = await listSayVoices();
-  if (!available.length) return null;
-  for (const preferred of PREFERRED_SAY_VOICES) {
-    const hit = available.find(
-      (name) => name.toLowerCase() === preferred.toLowerCase(),
-    );
-    if (hit) return hit;
-  }
-  // Prefer any Premium / Enhanced English-looking voice.
-  const enhanced = available.find((name) =>
-    /premium|enhanced|natural/i.test(name),
+  const english = available.filter((v) =>
+    v.locale.toLowerCase().startsWith("en_"),
   );
-  return enhanced || available[0];
+
+  if (!english.length) {
+    // Never fall back to a random first voice (often Italian/French).
+    return "Samantha";
+  }
+
+  for (const preferred of PREFERRED_SAY_VOICES) {
+    const hit = english.find(
+      (v) => v.name.toLowerCase() === preferred.toLowerCase(),
+    );
+    if (hit) return hit.name;
+  }
+
+  const enhanced = english.find((v) => /premium|enhanced/i.test(v.name));
+  if (enhanced) return enhanced.name;
+
+  const samantha = english.find((v) => /^samantha\b/i.test(v.name));
+  if (samantha) return samantha.name;
+
+  return english[0].name;
 }
 
 async function synthesizeWithSay(text, voice) {
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "read-to-me-"));
   const chunks = chunkText(text);
   const wavParts = [];
+  const chosen = voice || "Samantha";
 
   for (let i = 0; i < chunks.length; i += 1) {
     const aiffPath = path.join(dir, `part-${i}.aiff`);
     const wavPath = path.join(dir, `part-${i}.wav`);
-    const args = [];
-    if (voice) args.push("-v", voice);
-    // Slightly under default rate reads more naturally for long text.
-    args.push("-r", "165");
-    args.push("-o", aiffPath, chunks[i]);
-    await execFileAsync("say", args);
-    // Convert to WAV so Chromium can play it.
+    await execFileAsync("say", [
+      "-v",
+      chosen,
+      "-r",
+      "170",
+      "-o",
+      aiffPath,
+      chunks[i],
+    ]);
     await execFileAsync("afconvert", [
       "-f",
       "WAVE",
@@ -103,10 +124,9 @@ async function synthesizeWithSay(text, voice) {
     wavParts.push(await fs.promises.readFile(wavPath));
   }
 
-  // For multi-chunk, concatenate simply by returning array; player plays in order.
   return {
     engine: "macos-say",
-    voice: voice || "system",
+    voice: chosen,
     parts: wavParts.map((buf) => buf.toString("base64")),
     mime: "audio/wav",
     wordCount: text.split(/\s+/).filter(Boolean).length,
@@ -121,7 +141,6 @@ async function synthesizeWithGateway(text) {
     ? "https://ai-gateway.vercel.sh/v1"
     : "https://api.openai.com/v1";
 
-  // Split for API limits.
   const chunks = chunkText(text, 3500);
   const parts = [];
 
@@ -157,8 +176,7 @@ async function synthesizeWithGateway(text) {
 }
 
 /**
- * Best available natural TTS for this machine.
- * Prefer neural (if keyed), then macOS Premium/Enhanced say voices.
+ * Prefer neural (if keyed), then an English macOS Premium/Enhanced voice.
  */
 async function synthesizeSpeech(text) {
   const clean = text.trim();
@@ -178,7 +196,7 @@ async function synthesizeSpeech(text) {
 
   return {
     engine: "browser",
-    voice: null,
+    voice: "en-US",
     parts: [],
     mime: null,
     wordCount: clean.split(/\s+/).filter(Boolean).length,
