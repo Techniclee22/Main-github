@@ -6,20 +6,6 @@ const { promisify } = require("util");
 
 const execFileAsync = promisify(execFile);
 
-/** English fallbacks only if the Spoken Content voice can't be used. */
-const FALLBACK_SAY_VOICES = [
-  "Samantha (Enhanced)",
-  "Samantha (Premium)",
-  "Zoe (Premium)",
-  "Ava (Premium)",
-  "Allison (Enhanced)",
-  "Susan (Enhanced)",
-  "Tom (Enhanced)",
-  "Nicky (Premium)",
-  "Samantha",
-  "Alex",
-];
-
 /**
  * Join OCR line wraps into continuous prose.
  * `say` pauses on every newline, so visual line breaks must not reach TTS.
@@ -74,31 +60,10 @@ function chunkText(text, maxChars = 1400) {
 }
 
 /**
- * @returns {Promise<{name: string, locale: string}[]>}
+ * Best-effort label for status UI only.
+ * Prefs keys are often stale across macOS versions — never use this for `say -v`.
  */
-async function listSayVoices() {
-  if (process.platform !== "darwin") return [];
-  try {
-    const { stdout } = await execFileAsync("say", ["-v", "?"], {
-      maxBuffer: 1024 * 1024,
-    });
-    return stdout
-      .split("\n")
-      .map((line) => {
-        const match = line.match(/^(.+?)\s+([a-z]{2}_[A-Z]{2})\b/);
-        if (!match) return null;
-        return { name: match[1].trim(), locale: match[2] };
-      })
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-/**
- * Read the Spoken Content voice from System Settings.
- */
-async function readSystemVoiceName() {
+async function readSystemVoiceLabel() {
   if (process.platform !== "darwin") return null;
 
   const attempts = [
@@ -114,7 +79,7 @@ async function readSystemVoiceName() {
   for (const args of attempts) {
     try {
       const { stdout } = await execFileAsync("defaults", args);
-      const raw = stdout.trim();
+      const raw = stdout.trim().replace(/^"|"$/g, "");
       if (!raw) continue;
 
       const fromId = raw.match(
@@ -125,116 +90,44 @@ async function readSystemVoiceName() {
         const compact = raw.match(/\.([A-Za-z]+)$/);
         if (compact) return compact[1];
       }
-      return raw.replace(/^"|"$/g, "").trim();
+      return raw;
     } catch {
       // try next
     }
   }
 
-  try {
-    const { stdout } = await execFileAsync("defaults", [
-      "read",
-      "com.apple.speech.voice.prefs",
-    ]);
-    const nameMatch = stdout.match(/SelectedVoiceName\s*=\s*"?([^";\n]+)"?/);
-    if (nameMatch) return nameMatch[1].trim();
-    const idMatch = stdout.match(
-      /SelectedVoiceIdentifier\s*=\s*"?([^";\n]+)"?/,
-    );
-    if (idMatch) {
-      const stem = idMatch[1].match(/\.([A-Za-z]+)(?:\.premium|\.enhanced)?$/i);
-      if (stem) return stem[1];
-    }
-  } catch {
-    // domain missing
-  }
-
   return null;
 }
 
-function normalizeVoiceToken(name) {
-  return (name || "")
-    .toLowerCase()
-    .replace(/[()]/g, " ")
-    .replace(/\b(enhanced|premium|compact|neural)\b/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 /**
- * Prefer System Settings → Accessibility → Spoken Content (English).
- * @returns {Promise<{voice: string, useSystemDefault: boolean}>}
+ * On Mac, always match Terminal `say "..."`: omit `-v`.
+ * Passing `-v` from prefs/fallbacks is what kept the app stuck on Samantha.
  */
 async function pickSayVoice() {
-  const available = await listSayVoices();
-  const english = available.filter((v) =>
-    v.locale.toLowerCase().startsWith("en_"),
-  );
-  const pool = english.length ? english : available;
-
-  const systemName = await readSystemVoiceName();
-  if (systemName) {
-    const systemNorm = normalizeVoiceToken(systemName);
-    const systemEntry = available.find(
-      (v) =>
-        v.name.toLowerCase() === systemName.toLowerCase() ||
-        normalizeVoiceToken(v.name) === systemNorm ||
-        normalizeVoiceToken(v.name).startsWith(`${systemNorm} `),
-    );
-
-    if (systemEntry && !systemEntry.locale.toLowerCase().startsWith("en_")) {
-      // Non-English system voice — fall through to English fallbacks.
-    } else if (systemEntry) {
-      const enriched = pool
-        .filter((v) => normalizeVoiceToken(v.name) === systemNorm)
-        .sort((a, b) => {
-          const score = (name) =>
-            /premium|enhanced/i.test(name) ? 2 : /compact/i.test(name) ? -2 : 0;
-          return score(b.name) - score(a.name);
-        });
-      return {
-        voice: enriched[0]?.name || systemEntry.name,
-        useSystemDefault: false,
-      };
-    } else {
-      // Name unknown to us — let `say` use the Spoken Content default.
-      return { voice: systemName, useSystemDefault: true };
-    }
+  if (process.platform !== "darwin") {
+    return { voice: "Samantha", useSystemDefault: false };
   }
-
-  for (const preferred of FALLBACK_SAY_VOICES) {
-    const hit = pool.find(
-      (v) => v.name.toLowerCase() === preferred.toLowerCase(),
-    );
-    if (hit) return { voice: hit.name, useSystemDefault: false };
-  }
-
-  const enhanced = pool.find((v) => /premium|enhanced/i.test(v.name));
-  if (enhanced) return { voice: enhanced.name, useSystemDefault: false };
-
-  if (process.platform === "darwin") {
-    return { voice: "System voice", useSystemDefault: true };
-  }
-
-  return { voice: pool[0]?.name || "Samantha", useSystemDefault: false };
+  const label = (await readSystemVoiceLabel()) || "System voice";
+  return { voice: label, useSystemDefault: true };
 }
 
 async function synthesizeWithSay(text, voiceChoice) {
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "read-to-me-"));
   const chunks = chunkText(text);
   const wavParts = [];
-  const chosen = voiceChoice?.voice || "Samantha";
-  const useSystemDefault = Boolean(voiceChoice?.useSystemDefault);
+  const label = voiceChoice?.voice || "System voice";
 
   for (let i = 0; i < chunks.length; i += 1) {
     const aiffPath = path.join(dir, `part-${i}.aiff`);
     const wavPath = path.join(dir, `part-${i}.wav`);
-    const args = ["-r", "170", "-o", aiffPath];
-    // No -v → macOS Spoken Content / system voice.
-    if (!useSystemDefault) {
-      args.unshift("-v", chosen);
+
+    // Critical: do NOT pass -v on macOS.
+    // Terminal `say "text"` uses Spoken Content; `-v Name` overrides it.
+    const args = ["-r", "170", "-o", aiffPath, chunks[i]];
+    if (process.platform !== "darwin") {
+      args.unshift("-v", label);
     }
-    args.push(chunks[i]);
+
     await execFileAsync("say", args);
     await execFileAsync("afconvert", [
       "-f",
@@ -247,13 +140,14 @@ async function synthesizeWithSay(text, voiceChoice) {
     wavParts.push(await fs.promises.readFile(wavPath));
   }
 
+  const clean = reflowForSpeech(text);
   return {
     engine: "macos-say",
-    voice: chosen,
+    voice: label,
     parts: wavParts.map((buf) => buf.toString("base64")),
     mime: "audio/wav",
-    wordCount: reflowForSpeech(text).split(/\s+/).filter(Boolean).length,
-    text: reflowForSpeech(text),
+    wordCount: clean.split(/\s+/).filter(Boolean).length,
+    text: clean,
   };
 }
 
@@ -290,13 +184,14 @@ async function synthesizeWithGateway(text) {
     parts.push(buf.toString("base64"));
   }
 
+  const clean = reflowForSpeech(text);
   return {
     engine: "neural",
     voice: "nova",
     parts,
     mime: "audio/mpeg",
-    wordCount: reflowForSpeech(text).split(/\s+/).filter(Boolean).length,
-    text: reflowForSpeech(text),
+    wordCount: clean.split(/\s+/).filter(Boolean).length,
+    text: clean,
   };
 }
 
@@ -328,8 +223,7 @@ async function synthesizeSpeech(text) {
 
 module.exports = {
   synthesizeSpeech,
-  listSayVoices,
   pickSayVoice,
-  readSystemVoiceName,
+  readSystemVoiceLabel,
   reflowForSpeech,
 };
