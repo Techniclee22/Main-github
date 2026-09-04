@@ -114,11 +114,12 @@
       if (audio?.engine === "neural") {
         setStatus("Speaking (natural English)…");
       } else if (audio?.engine === "macos-say") {
-        setStatus(`Speaking (${audio.voice})…`);
+        setStatus(`Speaking with ${audio.voice}…`);
       } else {
         setStatus("Speaking…");
       }
-      await speech.speak(result.text, audio);
+      // Prefer the exact prose that was synthesized (already reflowed).
+      await speech.speak(audio?.text || result.text, audio);
       setStatus("");
     } catch (error) {
       setStatus(error?.message || "Could not read that window");

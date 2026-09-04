@@ -6,8 +6,8 @@ const { promisify } = require("util");
 
 const execFileAsync = promisify(execFile);
 
-/** English-only Premium/Enhanced voices, preferred first. */
-const PREFERRED_SAY_VOICES = [
+/** English fallbacks only if the Spoken Content voice can't be used. */
+const FALLBACK_SAY_VOICES = [
   "Samantha (Enhanced)",
   "Samantha (Premium)",
   "Zoe (Premium)",
@@ -18,26 +18,54 @@ const PREFERRED_SAY_VOICES = [
   "Nicky (Premium)",
   "Samantha",
   "Alex",
-  "Victoria",
-  "Daniel",
-  "Karen",
-  "Moira",
-  "Fiona",
 ];
 
+/**
+ * Join OCR line wraps into continuous prose.
+ * `say` pauses on every newline, so visual line breaks must not reach TTS.
+ */
+function reflowForSpeech(text) {
+  return String(text || "")
+    .split(/\n\n+/)
+    .map((block) => {
+      const lines = block
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+      if (!lines.length) return "";
+
+      let prose = lines[0];
+      for (let i = 1; i < lines.length; i += 1) {
+        if (prose.endsWith("-")) {
+          prose = `${prose.slice(0, -1)}${lines[i]}`;
+        } else {
+          prose = `${prose} ${lines[i]}`;
+        }
+      }
+      return prose.replace(/\s+/g, " ").trim();
+    })
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function chunkText(text, maxChars = 1400) {
-  const clean = text.replace(/\r\n/g, "\n").trim();
+  const clean = reflowForSpeech(text);
   if (!clean) return [];
   if (clean.length <= maxChars) return [clean];
 
   const chunks = [];
   let rest = clean;
   while (rest.length > maxChars) {
-    let cut = rest.lastIndexOf("\n\n", maxChars);
-    if (cut < maxChars * 0.4) cut = rest.lastIndexOf(". ", maxChars);
-    if (cut < maxChars * 0.4) cut = rest.lastIndexOf(" ", maxChars);
-    if (cut < maxChars * 0.4) cut = maxChars;
-    const end = cut + (rest[cut] === "." ? 2 : 0);
+    let cut = rest.lastIndexOf(". ", maxChars);
+    if (cut < maxChars * 0.45) cut = rest.lastIndexOf("? ", maxChars);
+    if (cut < maxChars * 0.45) cut = rest.lastIndexOf("! ", maxChars);
+    if (cut < maxChars * 0.45) cut = rest.lastIndexOf("; ", maxChars);
+    if (cut < maxChars * 0.45) cut = rest.lastIndexOf(", ", maxChars);
+    if (cut < maxChars * 0.45) cut = rest.lastIndexOf(" ", maxChars);
+    if (cut < maxChars * 0.45) cut = maxChars;
+    const end = cut + (".?!;".includes(rest[cut]) ? 2 : 0);
     chunks.push(rest.slice(0, end).trim());
     rest = rest.slice(end).trim();
   }
@@ -57,7 +85,6 @@ async function listSayVoices() {
     return stdout
       .split("\n")
       .map((line) => {
-        // "Samantha (Enhanced) en_US    # Hello! ..."
         const match = line.match(/^(.+?)\s+([a-z]{2}_[A-Z]{2})\b/);
         if (!match) return null;
         return { name: match[1].trim(), locale: match[2] };
@@ -68,51 +95,147 @@ async function listSayVoices() {
   }
 }
 
+/**
+ * Read the Spoken Content voice from System Settings.
+ */
+async function readSystemVoiceName() {
+  if (process.platform !== "darwin") return null;
+
+  const attempts = [
+    ["read", "com.apple.speech.voice.prefs", "SelectedVoiceName"],
+    ["read", "com.apple.speech.voice.prefs", "SelectedVoiceIdentifier"],
+    [
+      "read",
+      "com.apple.Accessibility",
+      "SpeechVoiceIdentifierForSpeakThisSelection",
+    ],
+  ];
+
+  for (const args of attempts) {
+    try {
+      const { stdout } = await execFileAsync("defaults", args);
+      const raw = stdout.trim();
+      if (!raw) continue;
+
+      const fromId = raw.match(
+        /(?:voice(?:\.[a-z-]+)?|synthesis\.voice)\.([A-Za-z]+)(?:\.|$)/i,
+      );
+      if (fromId) return fromId[1];
+      if (raw.includes(".")) {
+        const compact = raw.match(/\.([A-Za-z]+)$/);
+        if (compact) return compact[1];
+      }
+      return raw.replace(/^"|"$/g, "").trim();
+    } catch {
+      // try next
+    }
+  }
+
+  try {
+    const { stdout } = await execFileAsync("defaults", [
+      "read",
+      "com.apple.speech.voice.prefs",
+    ]);
+    const nameMatch = stdout.match(/SelectedVoiceName\s*=\s*"?([^";\n]+)"?/);
+    if (nameMatch) return nameMatch[1].trim();
+    const idMatch = stdout.match(
+      /SelectedVoiceIdentifier\s*=\s*"?([^";\n]+)"?/,
+    );
+    if (idMatch) {
+      const stem = idMatch[1].match(/\.([A-Za-z]+)(?:\.premium|\.enhanced)?$/i);
+      if (stem) return stem[1];
+    }
+  } catch {
+    // domain missing
+  }
+
+  return null;
+}
+
+function normalizeVoiceToken(name) {
+  return (name || "")
+    .toLowerCase()
+    .replace(/[()]/g, " ")
+    .replace(/\b(enhanced|premium|compact|neural)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Prefer System Settings → Accessibility → Spoken Content (English).
+ * @returns {Promise<{voice: string, useSystemDefault: boolean}>}
+ */
 async function pickSayVoice() {
   const available = await listSayVoices();
   const english = available.filter((v) =>
     v.locale.toLowerCase().startsWith("en_"),
   );
+  const pool = english.length ? english : available;
 
-  if (!english.length) {
-    // Never fall back to a random first voice (often Italian/French).
-    return "Samantha";
+  const systemName = await readSystemVoiceName();
+  if (systemName) {
+    const systemNorm = normalizeVoiceToken(systemName);
+    const systemEntry = available.find(
+      (v) =>
+        v.name.toLowerCase() === systemName.toLowerCase() ||
+        normalizeVoiceToken(v.name) === systemNorm ||
+        normalizeVoiceToken(v.name).startsWith(`${systemNorm} `),
+    );
+
+    if (systemEntry && !systemEntry.locale.toLowerCase().startsWith("en_")) {
+      // Non-English system voice — fall through to English fallbacks.
+    } else if (systemEntry) {
+      const enriched = pool
+        .filter((v) => normalizeVoiceToken(v.name) === systemNorm)
+        .sort((a, b) => {
+          const score = (name) =>
+            /premium|enhanced/i.test(name) ? 2 : /compact/i.test(name) ? -2 : 0;
+          return score(b.name) - score(a.name);
+        });
+      return {
+        voice: enriched[0]?.name || systemEntry.name,
+        useSystemDefault: false,
+      };
+    } else {
+      // Name unknown to us — let `say` use the Spoken Content default.
+      return { voice: systemName, useSystemDefault: true };
+    }
   }
 
-  for (const preferred of PREFERRED_SAY_VOICES) {
-    const hit = english.find(
+  for (const preferred of FALLBACK_SAY_VOICES) {
+    const hit = pool.find(
       (v) => v.name.toLowerCase() === preferred.toLowerCase(),
     );
-    if (hit) return hit.name;
+    if (hit) return { voice: hit.name, useSystemDefault: false };
   }
 
-  const enhanced = english.find((v) => /premium|enhanced/i.test(v.name));
-  if (enhanced) return enhanced.name;
+  const enhanced = pool.find((v) => /premium|enhanced/i.test(v.name));
+  if (enhanced) return { voice: enhanced.name, useSystemDefault: false };
 
-  const samantha = english.find((v) => /^samantha\b/i.test(v.name));
-  if (samantha) return samantha.name;
+  if (process.platform === "darwin") {
+    return { voice: "System voice", useSystemDefault: true };
+  }
 
-  return english[0].name;
+  return { voice: pool[0]?.name || "Samantha", useSystemDefault: false };
 }
 
-async function synthesizeWithSay(text, voice) {
+async function synthesizeWithSay(text, voiceChoice) {
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "read-to-me-"));
   const chunks = chunkText(text);
   const wavParts = [];
-  const chosen = voice || "Samantha";
+  const chosen = voiceChoice?.voice || "Samantha";
+  const useSystemDefault = Boolean(voiceChoice?.useSystemDefault);
 
   for (let i = 0; i < chunks.length; i += 1) {
     const aiffPath = path.join(dir, `part-${i}.aiff`);
     const wavPath = path.join(dir, `part-${i}.wav`);
-    await execFileAsync("say", [
-      "-v",
-      chosen,
-      "-r",
-      "170",
-      "-o",
-      aiffPath,
-      chunks[i],
-    ]);
+    const args = ["-r", "170", "-o", aiffPath];
+    // No -v → macOS Spoken Content / system voice.
+    if (!useSystemDefault) {
+      args.unshift("-v", chosen);
+    }
+    args.push(chunks[i]);
+    await execFileAsync("say", args);
     await execFileAsync("afconvert", [
       "-f",
       "WAVE",
@@ -129,7 +252,8 @@ async function synthesizeWithSay(text, voice) {
     voice: chosen,
     parts: wavParts.map((buf) => buf.toString("base64")),
     mime: "audio/wav",
-    wordCount: text.split(/\s+/).filter(Boolean).length,
+    wordCount: reflowForSpeech(text).split(/\s+/).filter(Boolean).length,
+    text: reflowForSpeech(text),
   };
 }
 
@@ -171,15 +295,13 @@ async function synthesizeWithGateway(text) {
     voice: "nova",
     parts,
     mime: "audio/mpeg",
-    wordCount: text.split(/\s+/).filter(Boolean).length,
+    wordCount: reflowForSpeech(text).split(/\s+/).filter(Boolean).length,
+    text: reflowForSpeech(text),
   };
 }
 
-/**
- * Prefer neural (if keyed), then an English macOS Premium/Enhanced voice.
- */
 async function synthesizeSpeech(text) {
-  const clean = text.trim();
+  const clean = reflowForSpeech(text);
   if (!clean) throw new Error("Nothing to speak.");
 
   try {
@@ -190,8 +312,8 @@ async function synthesizeSpeech(text) {
   }
 
   if (process.platform === "darwin") {
-    const voice = await pickSayVoice();
-    return synthesizeWithSay(clean, voice);
+    const voiceChoice = await pickSayVoice();
+    return synthesizeWithSay(clean, voiceChoice);
   }
 
   return {
@@ -208,4 +330,6 @@ module.exports = {
   synthesizeSpeech,
   listSayVoices,
   pickSayVoice,
+  readSystemVoiceName,
+  reflowForSpeech,
 };

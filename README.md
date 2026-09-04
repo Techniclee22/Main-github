@@ -47,11 +47,18 @@ Tip: Zoom the PDF a little if OCR misses small text. Turn pages, click **Read** 
 
 ## Natural English voice
 
-The app uses **English-only** voices:
+The app uses **your Mac Spoken Content voice** (System Settings → Accessibility → Spoken Content → System Voice).
 
-1. System Settings → Accessibility → Spoken Content → System Voice
-2. Download an **Enhanced** / **Premium** English voice (Samantha Enhanced, Ava, Zoe, …)
-3. Restart the app (`npm start`)
+1. Pick / download an **Enhanced** or **Premium** English voice there (Samantha, Ava, Zoe, …)
+2. Quit the app fully (pill menu → quit, or close the Terminal job with Ctrl+C)
+3. Start it again: `npm start`
+4. Click **Read** — the status line should show the voice name you chose
+
+If it still doesn’t match, say a test line in Terminal to confirm macOS picked it up:
+
+```bash
+say "This is my system voice"
+```
 
 ### Optional: cloud neural voice
 
@@ -79,7 +86,9 @@ Handbooks and magazines are read **left column top→bottom, then right column**
 | Empty window list | Open the PDF first, click Refresh in the picker |
 | “No readable text” | Zoom in on the page, make sure the text is visible, try Read again |
 | Can’t see other apps | Enable Screen Recording for the app in macOS Privacy settings |
-| Voice sounds foreign / wrong language | Install an English Enhanced voice; restart the app |
+| Voice didn’t change after Spoken Content setting | Fully quit the app, run `say "test"` in Terminal to confirm the system voice, then `npm start` again |
+| Reading pauses every line | Update to the latest branch — speech now follows punctuation, not PDF line wraps |
+| Voice sounds foreign / wrong language | Set Spoken Content to an English Enhanced voice; restart the app |
 | `npm` not found | Install Node.js LTS from nodejs.org, then open a **new** Terminal |
 
 ## Architecture

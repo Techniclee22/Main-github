@@ -155,6 +155,11 @@ function lineLooksLikeJunk(line) {
   if (!text) return true;
   if (letterRatio(text) < 0.58) return true;
   const tokens = text.split(/\s+/);
+  // Keep normal English words even when a "line" is a single short token
+  // (can happen before reflow when word boxes are vertically sparse).
+  if (tokens.length === 1 && /^[A-Za-z][A-Za-z'-]*$/.test(tokens[0])) {
+    return false;
+  }
   if (tokens.length <= 2 && text.length < 14 && !/^[A-Z][a-z]{2,}/.test(text)) {
     return true;
   }
@@ -192,6 +197,28 @@ function wordsToText(words) {
     .filter((line) => !lineLooksLikeJunk(line))
     .join("\n")
     .trim();
+}
+
+/**
+ * Join wrapped visual lines into continuous prose for speech.
+ * `say` pauses on every newline, so line breaks must not survive into TTS.
+ */
+function reflowColumnProse(text) {
+  const lines = text
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!lines.length) return "";
+
+  let prose = lines[0];
+  for (let i = 1; i < lines.length; i += 1) {
+    if (prose.endsWith("-")) {
+      prose = `${prose.slice(0, -1)}${lines[i]}`;
+    } else {
+      prose = `${prose} ${lines[i]}`;
+    }
+  }
+  return prose.replace(/\s+/g, " ").trim();
 }
 
 function sanitizeForSpeech(text) {
@@ -252,9 +279,12 @@ function textFromOcrPage(page) {
   }
 
   const columns = clusterColumns(words, pageWidth);
-  const parts = columns.map((col) => wordsToText(col)).filter(Boolean);
+  // Continuous prose per column (no visual line breaks), space between columns.
+  const parts = columns
+    .map((col) => reflowColumnProse(wordsToText(col)))
+    .filter(Boolean);
   return {
-    text: sanitizeForSpeech(trimLeadingJunk(parts.join("\n\n"))),
+    text: sanitizeForSpeech(trimLeadingJunk(parts.join(" "))),
     columns: columns.length,
   };
 }
