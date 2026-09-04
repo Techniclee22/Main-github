@@ -2,15 +2,18 @@
   function preferNaturalVoice(voices) {
     const ranked = [...voices].sort((a, b) => {
       const score = (voice) => {
-        const name = voice.name.toLowerCase();
+        const name = `${voice.name} ${voice.voiceURI}`.toLowerCase();
         let value = 0;
-        if (name.includes("premium") || name.includes("enhanced")) value += 5;
-        if (name.includes("natural") || name.includes("neural")) value += 5;
-        if (name.includes("siri") || name.includes("ava") || name.includes("zoe"))
-          value += 3;
-        if (name.includes("google") || name.includes("microsoft")) value += 2;
-        if (voice.localService) value += 1;
-        if (voice.lang.toLowerCase().startsWith("en")) value += 2;
+        if (/premium|enhanced|neural|natural|super/.test(name)) value += 12;
+        if (/zoe|ava|nora|samantha|allison|susan|nicky|tom|moira|daniel|karen|alex/.test(name)) {
+          value += 5;
+        }
+        if (/google|microsoft|siri/.test(name)) value += 3;
+        if (voice.localService) value += 2;
+        if (voice.lang?.toLowerCase().startsWith("en")) value += 4;
+        if (/compact|robot|novelty|whisper|zarvox|trinoids|bad news|boing|bubbles|cellos/.test(name)) {
+          value -= 20;
+        }
         return value;
       };
       return score(b) - score(a);
@@ -31,67 +34,279 @@
     });
   }
 
+  function tokenizeWords(text) {
+    const words = [];
+    const re = /\S+/g;
+    let match;
+    while ((match = re.exec(text)) !== null) {
+      words.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        length: match[0].length,
+      });
+    }
+    return words;
+  }
+
+  function base64ToBlob(base64, mime) {
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    return new Blob([bytes], { type: mime || "audio/mpeg" });
+  }
+
   window.ReadToMeSpeech = {
-    create({ onState, onBoundary } = {}) {
+    create({ onState, onBoundary, onVoiceInfo } = {}) {
       let speaking = false;
       let paused = false;
+      /** @type {HTMLAudioElement | null} */
+      let audioEl = null;
+      /** @type {string[]} */
+      let objectUrls = [];
+      /** @type {SpeechSynthesisUtterance | null} */
+      let utterance = null;
+      /** @type {ReturnType<typeof setInterval> | null} */
+      let tickTimer = null;
+      let words = [];
+      let wordIndex = -1;
+      let stopped = false;
 
-      return {
-        async speak(text) {
-          speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance(text);
-          const voices = await waitForVoices();
-          const voice = preferNaturalVoice(voices);
-          if (voice) utterance.voice = voice;
-          utterance.rate = 1;
+      function clearTick() {
+        if (tickTimer) {
+          clearInterval(tickTimer);
+          tickTimer = null;
+        }
+      }
 
-          await new Promise((resolve) => {
-            utterance.onstart = () => {
-              speaking = true;
-              paused = false;
-              onState?.("speaking");
-            };
-            utterance.onend = () => {
-              speaking = false;
-              paused = false;
-              onState?.("idle");
-              resolve();
-            };
-            utterance.onerror = () => {
-              speaking = false;
-              paused = false;
-              onState?.("idle");
-              resolve();
-            };
-            utterance.onpause = () => {
-              paused = true;
-              onState?.("paused");
-            };
-            utterance.onresume = () => {
-              paused = false;
-              onState?.("speaking");
-            };
-            utterance.onboundary = (event) => {
-              if (event.name === "word") {
-                onBoundary?.({
-                  charIndex: event.charIndex,
-                  charLength: event.charLength || 0,
-                });
+      function revokeUrls() {
+        for (const url of objectUrls) URL.revokeObjectURL(url);
+        objectUrls = [];
+      }
+
+      function stopAudio() {
+        if (!audioEl) return;
+        audioEl.ontimeupdate = null;
+        audioEl.onended = null;
+        audioEl.onerror = null;
+        audioEl.onplay = null;
+        audioEl.onpause = null;
+        audioEl.pause();
+        audioEl.removeAttribute("src");
+        audioEl.load();
+        audioEl = null;
+      }
+
+      function emitBoundary(index) {
+        if (index < 0 || index >= words.length) return;
+        if (index === wordIndex) return;
+        wordIndex = index;
+        const word = words[index];
+        onBoundary?.({
+          charIndex: word.start,
+          charLength: word.length,
+          wordIndex: index,
+        });
+      }
+
+      function emitProgress(progress) {
+        if (!words.length) return;
+        const clamped = Math.max(0, Math.min(0.999, progress));
+        const index = Math.min(
+          words.length - 1,
+          Math.floor(clamped * words.length),
+        );
+        emitBoundary(index);
+      }
+
+      function startEstimatedTick(totalMs) {
+        clearTick();
+        if (!words.length || totalMs <= 0) return;
+        const started = performance.now();
+        const startWord = Math.max(0, wordIndex);
+        tickTimer = setInterval(() => {
+          if (paused || stopped) return;
+          const elapsed = performance.now() - started;
+          const progress = startWord / words.length + (elapsed / totalMs) * ((words.length - startWord) / words.length);
+          emitProgress(progress);
+        }, 80);
+      }
+
+      function cleanupPlayback() {
+        clearTick();
+        stopAudio();
+        revokeUrls();
+        utterance = null;
+        speechSynthesis.cancel();
+      }
+
+      function finishIdle() {
+        speaking = false;
+        paused = false;
+        clearTick();
+        onState?.("idle");
+      }
+
+      async function playAudioParts(prepared) {
+        const parts = prepared.parts || [];
+        const mime = prepared.mime || "audio/mpeg";
+        if (!parts.length) return false;
+
+        onVoiceInfo?.({
+          engine: prepared.engine,
+          voice: prepared.voice || prepared.engine,
+        });
+
+        for (let i = 0; i < parts.length; i += 1) {
+          if (stopped) return true;
+          const blob = base64ToBlob(parts[i], mime);
+          const url = URL.createObjectURL(blob);
+          objectUrls.push(url);
+
+          await new Promise((resolve, reject) => {
+            stopAudio();
+            audioEl = new Audio(url);
+            audioEl.onplay = () => {
+              if (!speaking) {
+                speaking = true;
+                paused = false;
+                onState?.("speaking");
               }
             };
-            speechSynthesis.speak(utterance);
+            audioEl.ontimeupdate = () => {
+              if (!audioEl || !audioEl.duration || !Number.isFinite(audioEl.duration)) {
+                return;
+              }
+              const partWeight = 1 / parts.length;
+              const local = audioEl.currentTime / audioEl.duration;
+              const overall = i * partWeight + local * partWeight;
+              emitProgress(overall);
+            };
+            audioEl.onended = () => resolve();
+            audioEl.onerror = () =>
+              reject(new Error("Could not play the natural voice audio."));
+            audioEl.onpause = () => {
+              if (paused) onState?.("paused");
+            };
+            void audioEl.play().catch(reject);
           });
-        },
-        pause() {
-          if (speechSynthesis.speaking) speechSynthesis.pause();
-        },
-        resume() {
-          if (speechSynthesis.paused) speechSynthesis.resume();
-        },
-        stop() {
-          speechSynthesis.cancel();
+        }
+
+        return true;
+      }
+
+      async function speakWithBrowser(text) {
+        speechSynthesis.cancel();
+        const voices = await waitForVoices();
+        const voice = preferNaturalVoice(voices);
+        utterance = new SpeechSynthesisUtterance(text);
+        if (voice) utterance.voice = voice;
+        utterance.rate = 0.96;
+        utterance.pitch = 1;
+        onVoiceInfo?.({
+          engine: "browser",
+          voice: voice?.name || "System voice",
+        });
+
+        // ~165 wpm estimate when boundary events are missing (common in Electron).
+        const estimatedMs = Math.max(2500, (words.length / 165) * 60 * 1000);
+
+        await new Promise((resolve) => {
+          utterance.onstart = () => {
+            speaking = true;
+            paused = false;
+            onState?.("speaking");
+            startEstimatedTick(estimatedMs);
+          };
+          utterance.onend = () => {
+            clearTick();
+            if (words.length) emitBoundary(words.length - 1);
+            resolve();
+          };
+          utterance.onerror = () => {
+            clearTick();
+            resolve();
+          };
+          utterance.onpause = () => {
+            paused = true;
+            onState?.("paused");
+          };
+          utterance.onresume = () => {
+            paused = false;
+            onState?.("speaking");
+          };
+          utterance.onboundary = (event) => {
+            if (event.name !== "word" && event.charIndex == null) return;
+            // Prefer real boundary when the OS provides it.
+            const index = words.findIndex(
+              (w) => event.charIndex >= w.start && event.charIndex < w.end,
+            );
+            if (index >= 0) {
+              clearTick();
+              emitBoundary(index);
+              // Restart estimate from here in case boundaries stop mid-read.
+              const remaining = words.length - index;
+              startEstimatedTick(Math.max(1200, (remaining / 165) * 60 * 1000));
+            } else {
+              onBoundary?.({
+                charIndex: event.charIndex,
+                charLength: event.charLength || 0,
+              });
+            }
+          };
+          speechSynthesis.speak(utterance);
+        });
+      }
+
+      return {
+        async speak(text, prepared) {
+          stopped = false;
+          cleanupPlayback();
+          words = tokenizeWords(text);
+          wordIndex = -1;
           speaking = false;
           paused = false;
+
+          try {
+            if (prepared?.parts?.length) {
+              await playAudioParts(prepared);
+            } else {
+              await speakWithBrowser(text);
+            }
+          } finally {
+            if (!stopped) {
+              cleanupPlayback();
+              finishIdle();
+            }
+          }
+        },
+        pause() {
+          if (audioEl && !audioEl.paused) {
+            paused = true;
+            audioEl.pause();
+            onState?.("paused");
+            return;
+          }
+          if (speechSynthesis.speaking && !speechSynthesis.paused) {
+            paused = true;
+            speechSynthesis.pause();
+          }
+        },
+        resume() {
+          if (audioEl && audioEl.paused) {
+            paused = false;
+            void audioEl.play();
+            onState?.("speaking");
+            return;
+          }
+          if (speechSynthesis.paused) {
+            paused = false;
+            speechSynthesis.resume();
+          }
+        },
+        stop() {
+          stopped = true;
+          cleanupPlayback();
+          speaking = false;
+          paused = false;
+          wordIndex = -1;
           onState?.("idle");
         },
         get speaking() {

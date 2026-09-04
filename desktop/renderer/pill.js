@@ -14,6 +14,7 @@
 
   let selected = { id: null, name: null };
   let pickerOpen = false;
+  let currentText = "";
 
   const speech = window.ReadToMeSpeech.create({
     onState(state) {
@@ -24,7 +25,14 @@
       window.readToMe.sendPlaybackState({
         type: "boundary",
         charIndex: boundary.charIndex,
+        charLength: boundary.charLength || 0,
+        wordIndex: boundary.wordIndex,
       });
+    },
+    onVoiceInfo(info) {
+      if (info?.voice) {
+        setStatus(`Voice: ${info.voice}`);
+      }
     },
   });
 
@@ -45,8 +53,8 @@
   async function resizeForPicker(open) {
     pill.classList.toggle("is-expanded", open);
     await window.readToMe.resizePill({
-      width: 420,
-      height: open ? 360 : 72,
+      width: 440,
+      height: open ? 380 : 78,
     });
   }
 
@@ -106,12 +114,29 @@
     }
 
     readBtn.disabled = true;
-    setStatus("Reading the window…");
+    speech.stop();
+    setStatus("Reading the page…");
     try {
       const result = await window.readToMe.readSelectedWindow();
-      setStatus("Speaking…");
+      currentText = result.text;
       await window.readToMe.openReader();
-      await speech.speak(result.text);
+      // Give the follow-along panel a beat to paint the text.
+      await new Promise((r) => setTimeout(r, 200));
+
+      const cols =
+        result.columns > 1
+          ? ` · ${result.columns} columns (left, then right)`
+          : "";
+      setStatus(`Preparing natural voice${cols}…`);
+      const audio = await window.readToMe.synthesizeSpeech(currentText);
+      if (audio?.engine === "neural") {
+        setStatus("Speaking with natural cloud voice…");
+      } else if (audio?.engine === "macos-say") {
+        setStatus(`Speaking with ${audio.voice}…`);
+      } else {
+        setStatus("Speaking…");
+      }
+      await speech.speak(currentText, audio);
       setStatus("");
     } catch (error) {
       setStatus(error?.message || "Could not read that window");
@@ -145,6 +170,10 @@
     if (command === "pause") speech.pause();
     if (command === "resume") speech.resume();
     if (command === "stop") speech.stop();
+  });
+
+  window.readToMe.onReadingText((payload) => {
+    currentText = payload.text || currentText;
   });
 
   applyPlaybackUi("idle");

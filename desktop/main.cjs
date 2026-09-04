@@ -8,6 +8,8 @@ const {
 } = require("electron");
 const path = require("path");
 const { createWorker } = require("tesseract.js");
+const { textFromOcrPage } = require("./lib/ocr-layout.cjs");
+const { synthesizeSpeech } = require("./lib/tts.cjs");
 
 /** @type {BrowserWindow | null} */
 let pillWindow = null;
@@ -17,6 +19,8 @@ let readerWindow = null;
 let ocrWorker = null;
 /** @type {string | null} */
 let selectedSourceId = null;
+/** @type {{ text: string, title: string, columns: number } | null} */
+let lastReading = null;
 
 async function getOcrWorker() {
   if (!ocrWorker) {
@@ -27,8 +31,8 @@ async function getOcrWorker() {
 
 function createPillWindow() {
   const display = screen.getPrimaryDisplay();
-  const width = 420;
-  const height = 72;
+  const width = 440;
+  const height = 78;
   const x = Math.round(display.workArea.x + (display.workArea.width - width) / 2);
   const y = Math.round(display.workArea.y + display.workArea.height - height - 28);
 
@@ -72,10 +76,10 @@ function createReaderWindow() {
 
   const display = screen.getPrimaryDisplay();
   readerWindow = new BrowserWindow({
-    width: 480,
-    height: 640,
-    x: Math.round(display.workArea.x + display.workArea.width - 520),
-    y: Math.round(display.workArea.y + 80),
+    width: 520,
+    height: 720,
+    x: Math.round(display.workArea.x + display.workArea.width - 560),
+    y: Math.round(display.workArea.y + 60),
     title: "Read to Me — follow along",
     alwaysOnTop: true,
     show: false,
@@ -96,6 +100,14 @@ function createReaderWindow() {
   return readerWindow;
 }
 
+function whenReaderReady() {
+  const win = createReaderWindow();
+  if (!win.webContents.isLoading()) return Promise.resolve(win);
+  return new Promise((resolve) => {
+    win.webContents.once("did-finish-load", () => resolve(win));
+  });
+}
+
 async function listWindows() {
   const sources = await desktopCapturer.getSources({
     types: ["window"],
@@ -104,7 +116,7 @@ async function listWindows() {
   });
 
   return sources
-    .filter((source) => source.name && source.name !== "Read to Me")
+    .filter((source) => source.name && !/^Read to Me/i.test(source.name))
     .map((source) => ({
       id: source.id,
       name: source.name,
@@ -119,8 +131,7 @@ async function captureSelectedWindow() {
 
   const sources = await desktopCapturer.getSources({
     types: ["window"],
-    // High-res still for OCR of a handbook page
-    thumbnailSize: { width: 2200, height: 2800 },
+    thumbnailSize: { width: 2400, height: 3200 },
   });
 
   const match = sources.find((source) => source.id === selectedSourceId);
@@ -130,26 +141,25 @@ async function captureSelectedWindow() {
     );
   }
 
-  const png = match.thumbnail.toPNG();
-  return { png, name: match.name };
+  // Avoid capturing a nearly blank thumbnail.
+  if (match.thumbnail.isEmpty()) {
+    throw new Error("Could not capture that window. Bring it to the front and try again.");
+  }
+
+  return { png: match.thumbnail.toPNG(), name: match.name };
 }
 
 async function ocrPng(pngBuffer) {
   const worker = await getOcrWorker();
-  const image = nativeImage.createFromBuffer(pngBuffer);
-  const { width, height } = image.getSize();
-  // Prefer PNG file buffer for tesseract
+  // Touch nativeImage so invalid buffers fail early with a clear error.
+  nativeImage.createFromBuffer(pngBuffer);
   const result = await worker.recognize(pngBuffer);
-  return {
-    text: (result.data.text || "").trim(),
-    width,
-    height,
-  };
+  const layout = textFromOcrPage(result.data);
+  return layout;
 }
 
 app.whenReady().then(() => {
   createPillWindow();
-
   app.on("activate", () => {
     if (!pillWindow) createPillWindow();
   });
@@ -177,32 +187,43 @@ ipcMain.handle("get-selected-window", async () => selectedSourceId);
 
 ipcMain.handle("read-selected-window", async () => {
   const { png, name } = await captureSelectedWindow();
-  const { text } = await ocrPng(png);
+  const { text, columns } = await ocrPng(png);
   if (!text) {
     throw new Error(
       "No readable text found. Zoom the PDF a bit, then try Read again.",
     );
   }
 
-  createReaderWindow();
-  readerWindow?.webContents.send("reading-text", { text, title: name });
-  pillWindow?.webContents.send("reading-text", { text, title: name });
+  const reader = await whenReaderReady();
+  lastReading = {
+    text,
+    title: name,
+    columns: columns || 1,
+  };
+  reader.webContents.send("reading-text", lastReading);
+  pillWindow?.webContents.send("reading-text", lastReading);
 
-  return { text, title: name };
+  return { text, title: name, columns: columns || 1 };
+});
+
+ipcMain.handle("synthesize-speech", async (_event, text) => {
+  return synthesizeSpeech(text);
 });
 
 ipcMain.handle("open-reader", async () => {
-  createReaderWindow();
+  const reader = await whenReaderReady();
+  if (lastReading) {
+    reader.webContents.send("reading-text", lastReading);
+  }
   return { ok: true };
 });
 
 ipcMain.handle("resize-pill", async (_event, { width, height }) => {
   if (!pillWindow || pillWindow.isDestroyed()) return;
-  const [x, y] = pillWindow.getPosition();
   const bounds = pillWindow.getBounds();
   const bottom = bounds.y + bounds.height;
   pillWindow.setBounds({
-    x,
+    x: bounds.x,
     y: bottom - height,
     width,
     height,
@@ -210,7 +231,6 @@ ipcMain.handle("resize-pill", async (_event, { width, height }) => {
 });
 
 ipcMain.on("playback-state", (_event, state) => {
-  // Keep pill + reader in sync when either side changes playback.
   if (pillWindow && !pillWindow.isDestroyed()) {
     pillWindow.webContents.send("playback-state", state);
   }

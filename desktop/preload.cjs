@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld("readToMe", {
   selectWindow: (id) => ipcRenderer.invoke("select-window", id),
   getSelectedWindow: () => ipcRenderer.invoke("get-selected-window"),
   readSelectedWindow: () => ipcRenderer.invoke("read-selected-window"),
+  synthesizeSpeech: (text) => ipcRenderer.invoke("synthesize-speech", text),
   openReader: () => ipcRenderer.invoke("open-reader"),
   resizePill: (size) => ipcRenderer.invoke("resize-pill", size),
   sendPlaybackState: (state) => ipcRenderer.send("playback-state", state),

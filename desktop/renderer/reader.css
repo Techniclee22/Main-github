@@ -81,8 +81,30 @@ h1 {
 .body {
   margin: 0;
   font-size: 1.2rem;
-  line-height: 1.7;
+  line-height: 1.75;
   white-space: pre-wrap;
+}
+
+.meta {
+  margin: 0.35rem 0 0;
+  font-family: "SF Pro Text", "Segoe UI", sans-serif;
+  font-size: 0.8rem;
+  color: rgba(16, 36, 34, 0.65);
+}
+
+.word {
+  border-radius: 0.2em;
+  transition: background 70ms linear, color 70ms linear;
+}
+
+.word.is-read {
+  color: rgba(16, 36, 34, 0.45);
+}
+
+.word.is-active {
+  color: var(--ink);
+  background: #f2d2a2;
+  box-shadow: 0 0 0 2px rgba(242, 210, 162, 0.45);
 }
 
 .mark {
