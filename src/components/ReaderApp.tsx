@@ -9,7 +9,7 @@ import { recognizeImageText } from "@/lib/ocr";
 type CaptureMode = "camera" | "upload" | "paste";
 
 export function ReaderApp() {
-  const [mode, setMode] = useState<CaptureMode>("camera");
+  const [mode, setMode] = useState<CaptureMode>("paste");
   const [text, setText] = useState("");
   const [ocrStatus, setOcrStatus] = useState<string | null>(null);
   const [ocrProgress, setOcrProgress] = useState(0);
@@ -74,9 +74,9 @@ export function ReaderApp() {
       <div className="mode-tabs" role="tablist" aria-label="How to capture text">
         {(
           [
+            ["paste", "Type or paste"],
             ["camera", "Camera"],
             ["upload", "Photo"],
-            ["paste", "Type or paste"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -84,6 +84,8 @@ export function ReaderApp() {
             type="button"
             role="tab"
             aria-selected={mode === id}
+            aria-controls="capture-panel"
+            id={`mode-${id}`}
             className={`mode-tab${mode === id ? " is-active" : ""}`}
             onClick={() => setMode(id)}
           >
@@ -92,7 +94,12 @@ export function ReaderApp() {
         ))}
       </div>
 
-      <div className="capture-panel" role="tabpanel">
+      <div
+        id="capture-panel"
+        className="capture-panel"
+        role="tabpanel"
+        aria-labelledby={`mode-${mode}`}
+      >
         {mode === "camera" ? (
           <CameraCapture
             onCapture={(blob) => void runOcr(blob)}

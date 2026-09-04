@@ -83,11 +83,12 @@ a {
 /* Hero — one composition, brand first */
 .hero {
   position: relative;
-  min-height: min(92vh, 820px);
+  min-height: min(88vh, 760px);
   display: grid;
   align-items: end;
   padding: 5rem 0 3.5rem;
   overflow: hidden;
+  isolation: isolate;
 }
 
 .hero-atmosphere {
@@ -147,6 +148,7 @@ a {
   width: min(52vw, 520px);
   z-index: 1;
   animation: floaty 7s ease-in-out infinite;
+  pointer-events: none;
 }
 
 .hero-glow {
@@ -240,6 +242,8 @@ a {
 
 /* App shell */
 .app-shell {
+  position: relative;
+  z-index: 3;
   margin-top: 1rem;
   padding: 1.5rem;
   border-radius: calc(var(--radius) + 0.35rem);
@@ -265,6 +269,8 @@ a {
 }
 
 .mode-tabs {
+  position: relative;
+  z-index: 4;
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -273,14 +279,17 @@ a {
 
 .mode-tab {
   appearance: none;
+  position: relative;
+  z-index: 4;
   border: 1.5px solid rgba(15, 76, 74, 0.18);
-  background: transparent;
+  background: color-mix(in srgb, var(--foam) 92%, white);
   color: var(--ink-soft);
   font: inherit;
   font-weight: 600;
   padding: 0.65rem 1rem;
   border-radius: 999px;
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .mode-tab.is-active {
