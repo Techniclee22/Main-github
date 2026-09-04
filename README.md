@@ -44,15 +44,14 @@ That fetches the latest code, installs anything new, and starts the pill.
 
 ## How to use it (with your PDF)
 
-1. Open your PDF in **Preview** (like `MB001_Mistborn_Handbook_digital.pdf`)
-2. On the floating pill, click the **window** button (▣)
-3. Click the Preview / PDF window in the list
-4. Click **Read**
-5. Allow **Screen Recording** if macOS asks (System Settings → Privacy & Security → Screen Recording → enable for Electron / Read to Me)
-6. Keep looking at your PDF — the pill reads it aloud
-7. Use **Pause / Resume / Stop** on the pill
+1. Open your PDF in **Preview**
+2. Click **Read** on the floating pill  
+   — it reads the window you were just looking at. No picker needed.
+3. Allow **Screen Recording** if macOS asks
+4. Use **Pause / Resume / Stop** on the pill  
+   — after Stop, click **Read** again anytime
 
-Tip: Zoom the PDF a little if OCR misses small text. Turn pages, click **Read** again.
+Optional: the window button (▣) lets you force a specific window if auto-pick gets the wrong one.
 
 ## Natural English voice
 

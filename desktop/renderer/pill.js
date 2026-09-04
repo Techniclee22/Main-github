@@ -13,6 +13,9 @@
 
   let selected = { id: null, name: null };
   let pickerOpen = false;
+  let reading = false;
+  // True only after an explicit picker choice — next Read uses that window once.
+  let forceSelected = false;
 
   const speech = window.ReadToMeSpeech.create({
     onState(state) {
@@ -31,10 +34,15 @@
     if (state && typeof state === "object") return;
     const speaking = state === "speaking";
     const paused = state === "paused";
+    const busy = speaking || paused;
     pauseBtn.hidden = !speaking;
     resumeBtn.hidden = !paused;
-    stopBtn.hidden = !(speaking || paused);
-    readBtn.hidden = speaking || paused;
+    stopBtn.hidden = !busy;
+    readBtn.hidden = busy;
+    // Stop used to leave Read disabled forever — always clear that here.
+    if (!busy && !reading) {
+      readBtn.disabled = false;
+    }
   }
 
   async function resizeForPicker(open) {
@@ -66,6 +74,7 @@
       btn.querySelector("span").textContent = win.name;
       btn.addEventListener("click", async () => {
         selected = { id: win.id, name: win.name };
+        forceSelected = true;
         await window.readToMe.selectWindow(win.id);
         targetLabel.textContent = win.name;
         targetLabel.title = win.name;
@@ -91,20 +100,31 @@
   });
 
   readBtn.addEventListener("click", async () => {
-    if (!selected.id) {
-      pickerOpen = true;
-      picker.hidden = false;
-      await resizeForPicker(true);
-      await loadWindows();
-      setStatus("Pick the PDF window first");
-      return;
-    }
-
+    reading = true;
     readBtn.disabled = true;
     speech.stop();
-    setStatus("Reading the page…");
+    if (pickerOpen) {
+      pickerOpen = false;
+      picker.hidden = true;
+      await resizeForPicker(false);
+    }
+
+    setStatus("Reading the active window…");
     try {
-      const result = await window.readToMe.readSelectedWindow();
+      // Default: whatever you were just looking at (PDF in Preview, etc.).
+      // Picker override applies for one Read, then we're back to active-window mode.
+      const useForced = forceSelected && selected.id;
+      forceSelected = false;
+      const result = useForced
+        ? await window.readToMe.readSelectedWindow()
+        : await window.readToMe.readActiveWindow();
+
+      if (result.title) {
+        selected = { id: result.id || selected.id, name: result.title };
+        targetLabel.textContent = result.title;
+        targetLabel.title = result.title;
+      }
+
       const cols =
         result.columns > 1
           ? ` · ${result.columns} columns (left, then right)`
@@ -118,14 +138,15 @@
       } else {
         setStatus("Speaking…");
       }
-      // Prefer the exact prose that was synthesized (already reflowed).
       await speech.speak(audio?.text || result.text, audio);
       setStatus("");
     } catch (error) {
       setStatus(error?.message || "Could not read that window");
       applyPlaybackUi("idle");
     } finally {
+      reading = false;
       readBtn.disabled = false;
+      applyPlaybackUi(speech.speaking ? "speaking" : speech.paused ? "paused" : "idle");
     }
   });
 
@@ -133,8 +154,14 @@
   resumeBtn.addEventListener("click", () => speech.resume());
   stopBtn.addEventListener("click", () => {
     speech.stop();
-    setStatus("");
+    reading = false;
+    readBtn.disabled = false;
+    applyPlaybackUi("idle");
+    setStatus("Stopped — click Read anytime");
   });
 
+  targetLabel.textContent = "Active window";
+  targetLabel.title = "Click Read to speak the window you were just using";
+  setStatus("Open a PDF, then click Read");
   applyPlaybackUi("idle");
 })();

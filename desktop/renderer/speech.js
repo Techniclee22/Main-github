@@ -1,6 +1,5 @@
 (() => {
   function preferNaturalVoice(voices) {
-    // English only — never fall through to Italian/French/etc. system voices.
     const english = voices.filter((v) =>
       (v.lang || "").toLowerCase().startsWith("en"),
     );
@@ -74,6 +73,8 @@
       let words = [];
       let wordIndex = -1;
       let stopped = false;
+      /** @type {(() => void) | null} */
+      let abortCurrentPart = null;
 
       function clearTick() {
         if (tickTimer) {
@@ -130,13 +131,21 @@
         tickTimer = setInterval(() => {
           if (paused || stopped) return;
           const elapsed = performance.now() - started;
-          const progress = startWord / words.length + (elapsed / totalMs) * ((words.length - startWord) / words.length);
+          const progress =
+            startWord / words.length +
+            (elapsed / totalMs) * ((words.length - startWord) / words.length);
           emitProgress(progress);
         }, 80);
       }
 
       function cleanupPlayback() {
         clearTick();
+        // Unblock any await sitting inside playAudioParts / speakWithBrowser.
+        if (abortCurrentPart) {
+          const abort = abortCurrentPart;
+          abortCurrentPart = null;
+          abort();
+        }
         stopAudio();
         revokeUrls();
         utterance = null;
@@ -169,6 +178,7 @@
           await new Promise((resolve, reject) => {
             stopAudio();
             audioEl = new Audio(url);
+            abortCurrentPart = () => resolve();
             audioEl.onplay = () => {
               if (!speaking) {
                 speaking = true;
@@ -185,13 +195,21 @@
               const overall = i * partWeight + local * partWeight;
               emitProgress(overall);
             };
-            audioEl.onended = () => resolve();
-            audioEl.onerror = () =>
+            audioEl.onended = () => {
+              abortCurrentPart = null;
+              resolve();
+            };
+            audioEl.onerror = () => {
+              abortCurrentPart = null;
               reject(new Error("Could not play the natural voice audio."));
+            };
             audioEl.onpause = () => {
               if (paused) onState?.("paused");
             };
-            void audioEl.play().catch(reject);
+            void audioEl.play().catch((error) => {
+              abortCurrentPart = null;
+              reject(error);
+            });
           });
         }
 
@@ -212,10 +230,10 @@
           voice: voice?.name || "System voice",
         });
 
-        // ~165 wpm estimate when boundary events are missing (common in Electron).
         const estimatedMs = Math.max(2500, (words.length / 165) * 60 * 1000);
 
         await new Promise((resolve) => {
+          abortCurrentPart = () => resolve();
           utterance.onstart = () => {
             speaking = true;
             paused = false;
@@ -223,11 +241,13 @@
             startEstimatedTick(estimatedMs);
           };
           utterance.onend = () => {
+            abortCurrentPart = null;
             clearTick();
             if (words.length) emitBoundary(words.length - 1);
             resolve();
           };
           utterance.onerror = () => {
+            abortCurrentPart = null;
             clearTick();
             resolve();
           };
@@ -241,14 +261,12 @@
           };
           utterance.onboundary = (event) => {
             if (event.name !== "word" && event.charIndex == null) return;
-            // Prefer real boundary when the OS provides it.
             const index = words.findIndex(
               (w) => event.charIndex >= w.start && event.charIndex < w.end,
             );
             if (index >= 0) {
               clearTick();
               emitBoundary(index);
-              // Restart estimate from here in case boundaries stop mid-read.
               const remaining = words.length - index;
               startEstimatedTick(Math.max(1200, (remaining / 165) * 60 * 1000));
             } else {
@@ -278,10 +296,9 @@
               await speakWithBrowser(text);
             }
           } finally {
-            if (!stopped) {
-              cleanupPlayback();
-              finishIdle();
-            }
+            // Always return to idle — including after Stop — so Read works again.
+            cleanupPlayback();
+            finishIdle();
           }
         },
         pause() {
