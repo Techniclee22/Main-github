@@ -1,53 +1,74 @@
 # Read to Me
 
-Assistive reader that **sees what is on your screen** and speaks it aloud.
+A **floating pill on your Mac desktop**. Pick an open window (like a PDF in Preview), tap **Read**, and hear it spoken in a natural voice — with a follow-along panel so you can read with it.
 
-Share a browser tab, PDF window, or another app. Read to Me captures that
-surface, extracts the text, and reads it — for people who cannot easily read
-what is in front of them.
+This is **not** a website you paste text into. It sits on top of whatever you already have open.
 
-## What works today
+## What you need
 
-- **Screen share (primary)** — pick a tab, window, or entire display; OCR runs on-device; text is spoken
-- **Keep watching** — re-read when shared content changes (scroll / navigate)
-- **Camera & photo** — point at paper, signs, or a second device
-- **Paste** — optional fallback if you already have text
-- **Device voices** — browser Web Speech (free, can work offline)
-- **Natural voices (optional)** — neural TTS via Vercel AI Gateway when configured
-- **Installable PWA**
+- A **Mac** (your PDF screenshot is Preview on macOS)
+- [Node.js LTS](https://nodejs.org) installed (one-time)
+- Screen Recording permission when macOS asks (required to see other windows)
 
-## Run locally
+## First-time setup
+
+1. Open **Terminal** (Spotlight → type `Terminal` → Enter)
+2. Get the project and open the desktop app folder:
 
 ```bash
+cd ~
+git clone https://github.com/Techniclee22/Main-github.git
+cd Main-github
+git checkout cursor/read-to-me-app-bbd6
+cd desktop
 npm install
-npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
-1. Click **Share screen to read**
-2. Choose the tab/window/PDF you want spoken
-3. Click **Read this screen**
-
-Screen share needs a desktop browser (Chrome, Edge, or Firefox). On a phone, use Camera or Photo.
-
-### Natural voices (optional)
+## Run the floating pill
 
 ```bash
-# .env.local
-AI_GATEWAY_API_KEY=your_key
+cd ~/Main-github/desktop
+npm start
 ```
+A small pill appears near the bottom of your screen.
 
-Without it, device voices still work fully.
+## How to use it (with your PDF)
+
+1. Open your PDF in **Preview** (like `MB001_Mistborn_Handbook_digital.pdf`)
+2. On the floating pill, click the **window** button (▣)
+3. Click the Preview / PDF window in the list
+4. Click **Read**
+5. Allow **Screen Recording** if macOS asks (System Settings → Privacy & Security → Screen Recording → enable for Electron / Read to Me)
+6. A **Follow along** panel opens with the text; the voice reads it aloud
+7. Use **Pause / Resume / Stop** on the pill
+
+Tip: Zoom the PDF a little if OCR misses small text. Turn pages, click **Read** again.
+
+## Better / more natural voices on Mac
+
+1. System Settings → Accessibility → Spoken Content → System Voice  
+   (or System Settings → Accessibility → Live Speech, depending on macOS version)
+2. Download an **Enhanced** / **Premium** voice (e.g. Ava, Zoe, Samantha Enhanced)
+3. Restart the app — it prefers those voices automatically
+
+Cloud “neural” voices can come next once you add an API key; the Mac enhanced voices are already much more natural than the old robotic ones.
+
+## Project layout
+
+| Folder | Role |
+| --- | --- |
+| `desktop/` | **The product** — Electron floating pill |
+| `src/` | Earlier web experiment (secondary) |
+
+## Troubleshooting
+
+| Problem | Fix |
+| --- | --- |
+| Empty window list | Open the PDF first, click Refresh in the picker |
+| “No readable text” | Zoom in on the page, make sure the text is visible, try Read again |
+| Can’t see other apps | Enable Screen Recording for the app in macOS Privacy settings |
+| `npm` not found | Install Node.js LTS from nodejs.org, then open a **new** Terminal |
 
 ## Architecture
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
-## Stack
-
-- Next.js (App Router) + TypeScript
-- Screen Capture API (`getDisplayMedia`)
-- Tesseract.js (on-device OCR)
-- Web Speech API + Vercel AI Gateway TTS
-- Progressive Web App manifest

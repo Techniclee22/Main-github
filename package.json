@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "desktop": "npm --prefix desktop start",
+    "desktop:install": "npm --prefix desktop install"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.74",

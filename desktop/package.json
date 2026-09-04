@@ -1,0 +1,15 @@
+{
+  "name": "read-to-me-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Floating desktop pill that reads whatever window you pick — PDFs, apps, screens.",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron ."
+  },
+  "dependencies": {
+    "electron": "^37.2.0",
+    "tesseract.js": "^7.0.0"
+  }
+}

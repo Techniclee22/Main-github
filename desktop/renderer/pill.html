@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>Read to Me</title>
+    <link rel="stylesheet" href="./pill.css" />
+  </head>
+  <body>
+    <div class="pill" id="pill">
+      <div class="pill-main">
+        <button type="button" class="icon-btn" id="pickBtn" title="Choose window">
+          <span aria-hidden="true">▣</span>
+          <span class="sr-only">Choose window</span>
+        </button>
+
+        <div class="target" id="targetLabel" title="No window selected">
+          Pick a window
+        </div>
+
+        <button type="button" class="read-btn" id="readBtn">Read</button>
+        <button type="button" class="icon-btn" id="pauseBtn" hidden title="Pause">
+          ⏸
+        </button>
+        <button type="button" class="icon-btn" id="resumeBtn" hidden title="Resume">
+          ▶
+        </button>
+        <button type="button" class="icon-btn" id="stopBtn" hidden title="Stop">
+          ⏹
+        </button>
+        <button type="button" class="icon-btn" id="followBtn" title="Follow along">
+          ☰
+        </button>
+      </div>
+
+      <div class="picker" id="picker" hidden>
+        <p class="picker-hint">Choose the PDF or app window to read</p>
+        <div class="picker-list" id="pickerList"></div>
+        <button type="button" class="linkish" id="refreshBtn">Refresh list</button>
+      </div>
+
+      <p class="status" id="status" aria-live="polite"></p>
+    </div>
+
+    <script src="./speech.js"></script>
+    <script src="./pill.js"></script>
+  </body>
+</html>
