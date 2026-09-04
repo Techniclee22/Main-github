@@ -13,25 +13,34 @@ This is **not** a website you paste text into. It sits on top of whatever you al
 ## First-time setup
 
 1. Open **Terminal** (Spotlight → type `Terminal` → Enter)
-2. Get the project and open the desktop app folder:
+2. Get the project once:
 
 ```bash
 cd ~
 git clone https://github.com/Techniclee22/Main-github.git
 cd Main-github
 git checkout cursor/read-to-me-app-bbd6
-cd desktop
-npm install
+chmod +x update-and-run.sh run.sh
+./update-and-run.sh
 ```
 
-## Run the floating pill
+After that, you almost never need the long command list again.
+
+## Update & run (one command)
+
+Whenever there’s a new fix, run this **one** line:
 
 ```bash
-cd ~/Main-github/desktop
-npm start
+~/Main-github/update-and-run.sh
 ```
 
-A small pill appears near the bottom of your screen.
+That fetches the latest code, installs anything new, and starts the pill.
+
+## Just run (no update)
+
+```bash
+~/Main-github/run.sh
+```
 
 ## How to use it (with your PDF)
 
@@ -82,9 +91,9 @@ Handbooks and magazines are read **left column top→bottom, then right column**
 | Empty window list | Open the PDF first, click Refresh in the picker |
 | “No readable text” | Zoom in on the page, make sure the text is visible, try Read again |
 | Can’t see other apps | Enable Screen Recording for the app in macOS Privacy settings |
-| Voice didn’t change after Spoken Content setting | Fully quit the app, run `say "test"` in Terminal to confirm the system voice, then `npm start` again |
-| Reading pauses every line | Update to the latest branch — speech now follows punctuation, not PDF line wraps |
-| Voice sounds foreign / wrong language | Set Spoken Content to an English Enhanced voice; restart the app |
+| Voice didn’t change after Spoken Content setting | Fully quit the app, run `say "test"` in Terminal, then `~/Main-github/update-and-run.sh` |
+| Reading pauses every line | Run `~/Main-github/update-and-run.sh` to get the latest build |
+| Voice sounds foreign / wrong language | Set Spoken Content to an English Enhanced voice; restart with `~/Main-github/run.sh` |
 | `npm` not found | Install Node.js LTS from nodejs.org, then open a **new** Terminal |
 
 ## Architecture
