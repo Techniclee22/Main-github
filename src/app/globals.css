@@ -438,11 +438,29 @@ a {
   border-top: 1px solid rgba(15, 76, 74, 0.1);
 }
 
-.settings summary {
+.settings-toggle {
+  appearance: none;
+  border: none;
+  background: transparent;
   cursor: pointer;
+  font: inherit;
   font-weight: 700;
   color: var(--teal);
   font-size: 1.05rem;
+  padding: 0.5rem 0;
+  min-height: 2.75rem;
+  text-align: left;
+  width: 100%;
+}
+
+.settings-toggle:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 0.4rem;
+}
+
+.settings-body {
+  margin-top: 0.35rem;
 }
 
 .settings-grid {

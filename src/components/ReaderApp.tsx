@@ -14,6 +14,7 @@ export function ReaderApp() {
   const [ocrStatus, setOcrStatus] = useState<string | null>(null);
   const [ocrProgress, setOcrProgress] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const speech = useSpeech();
@@ -227,65 +228,79 @@ export function ReaderApp() {
         </button>
       </div>
 
-      <details className="settings">
-        <summary>Voice &amp; speed</summary>
-        <div className="settings-grid">
-          <label>
-            Voice engine
-            <select
-              value={speech.engineId}
-              onChange={(event) =>
-                speech.changeEngine(
-                  event.target.value as "browser" | "neural",
-                )
-              }
-            >
-              {speech.engines.map((engine) => (
-                <option
-                  key={engine.id}
-                  value={engine.id}
-                  disabled={!engine.available && engine.id === "neural"}
+      <div className="settings">
+        <button
+          type="button"
+          className="settings-toggle"
+          aria-expanded={settingsOpen}
+          aria-controls="voice-settings"
+          onClick={() => setSettingsOpen((open) => !open)}
+        >
+          Voice &amp; speed
+        </button>
+        {settingsOpen ? (
+          <div id="voice-settings" className="settings-body">
+            <div className="settings-grid">
+              <label>
+                Voice engine
+                <select
+                  value={speech.engineId}
+                  onChange={(event) =>
+                    speech.changeEngine(
+                      event.target.value as "browser" | "neural",
+                    )
+                  }
                 >
-                  {engine.label}
-                  {!engine.available && engine.id === "neural"
-                    ? " (not configured)"
-                    : ""}
-                </option>
-              ))}
-            </select>
-          </label>
+                  {speech.engines.map((engine) => (
+                    <option
+                      key={engine.id}
+                      value={engine.id}
+                      disabled={!engine.available && engine.id === "neural"}
+                    >
+                      {engine.label}
+                      {!engine.available && engine.id === "neural"
+                        ? " (not configured)"
+                        : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-          <label>
-            Voice
-            <select
-              value={speech.voiceId ?? ""}
-              onChange={(event) => speech.setVoiceId(event.target.value)}
-            >
-              {speech.voices.map((voice) => (
-                <option key={voice.id} value={voice.id}>
-                  {voice.name} ({voice.lang})
-                </option>
-              ))}
-            </select>
-          </label>
+              <label>
+                Voice
+                <select
+                  value={speech.voiceId ?? ""}
+                  onChange={(event) => speech.setVoiceId(event.target.value)}
+                >
+                  {speech.voices.map((voice) => (
+                    <option key={voice.id} value={voice.id}>
+                      {voice.name} ({voice.lang})
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-          <label>
-            Speed ({speech.rate.toFixed(1)}×)
-            <input
-              type="range"
-              min={0.7}
-              max={1.6}
-              step={0.1}
-              value={speech.rate}
-              onChange={(event) => speech.setRate(Number(event.target.value))}
-            />
-          </label>
-        </div>
-        <p className="hint">
-          Natural voices use cloud TTS when configured. Device voices work
-          offline and keep text on your device.
-        </p>
-      </details>
+              <label>
+                Speed ({speech.rate.toFixed(1)}×)
+                <input
+                  type="range"
+                  min={0.7}
+                  max={1.6}
+                  step={0.1}
+                  value={speech.rate}
+                  onChange={(event) =>
+                    speech.setRate(Number(event.target.value))
+                  }
+                />
+              </label>
+            </div>
+            <p className="hint">
+              Natural voices use cloud TTS when configured. Device voices work
+              offline and keep text on your device.
+            </p>
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }
