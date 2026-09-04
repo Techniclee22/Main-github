@@ -46,12 +46,28 @@ Tip: Zoom the PDF a little if OCR misses small text. Turn pages, click **Read** 
 
 ## Better / more natural voices on Mac
 
+The app prefers **Premium / Enhanced** macOS voices (Zoe, Ava, Samantha, …) via the system `say` engine — much less robotic than the default browser voice.
+
 1. System Settings → Accessibility → Spoken Content → System Voice  
    (or System Settings → Accessibility → Live Speech, depending on macOS version)
 2. Download an **Enhanced** / **Premium** voice (e.g. Ava, Zoe, Samantha Enhanced)
-3. Restart the app — it prefers those voices automatically
+3. Restart the app (`npm start`) so it can pick up the new voice
 
-Cloud “neural” voices can come next once you add an API key; the Mac enhanced voices are already much more natural than the old robotic ones.
+### Optional: cloud neural voice
+
+For the most natural sound, set an API key before starting:
+
+```bash
+export OPENAI_API_KEY="sk-..."   # or AI_GATEWAY_API_KEY for Vercel AI Gateway
+cd ~/Main-github/desktop
+npm start
+```
+
+With a key present, Read uses a high-quality neural voice (`tts-1-hd`). Without one, it falls back to your Mac Premium/Enhanced voice.
+
+## Two-column PDFs
+
+Handbooks and magazines are read **left column top→bottom, then right column** — not straight across the page.
 
 ## Project layout
 
