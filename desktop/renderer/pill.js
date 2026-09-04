@@ -114,7 +114,7 @@
       if (audio?.engine === "neural") {
         setStatus("Speaking (natural English)…");
       } else if (audio?.engine === "macos-say") {
-        setStatus(`Speaking with ${audio.voice}…`);
+        setStatus(`Speaking with your system voice (${audio.voice})…`);
       } else {
         setStatus("Speaking…");
       }

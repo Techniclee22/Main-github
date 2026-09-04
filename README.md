@@ -47,18 +47,14 @@ Tip: Zoom the PDF a little if OCR misses small text. Turn pages, click **Read** 
 
 ## Natural English voice
 
-The app uses **your Mac Spoken Content voice** (System Settings → Accessibility → Spoken Content → System Voice).
+The app uses the **same voice as Terminal** `say "…"` — your Mac Spoken Content / system voice.
 
-1. Pick / download an **Enhanced** or **Premium** English voice there (Samantha, Ava, Zoe, …)
-2. Quit the app fully (pill menu → quit, or close the Terminal job with Ctrl+C)
-3. Start it again: `npm start`
-4. Click **Read** — the status line should show the voice name you chose
+1. System Settings → Accessibility → Spoken Content → System Voice  
+2. Pick an Enhanced/Premium English voice  
+3. Confirm in Terminal: `say "This is my system voice"`  
+4. Fully quit the app (Ctrl+C), then `npm start` and click **Read**
 
-If it still doesn’t match, say a test line in Terminal to confirm macOS picked it up:
-
-```bash
-say "This is my system voice"
-```
+The status line should say it’s using your system voice.
 
 ### Optional: cloud neural voice
 
