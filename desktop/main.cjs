@@ -11,7 +11,12 @@ const { execFile } = require("child_process");
 const { promisify } = require("util");
 const { createWorker } = require("tesseract.js");
 const { textFromOcrPage } = require("./lib/ocr-layout.cjs");
-const { synthesizeSpeech } = require("./lib/tts.cjs");
+const {
+  synthesizeSpeech,
+  synthesizeSpeechChunk,
+  planSpeech,
+} = require("./lib/tts.cjs");
+const crypto = require("crypto");
 
 const execFileAsync = promisify(execFile);
 
@@ -270,6 +275,36 @@ ipcMain.handle("read-active-window", async () => {
 
 ipcMain.handle("synthesize-speech", async (_event, text) => {
   return synthesizeSpeech(text);
+});
+
+ipcMain.handle("plan-speech", async (_event, text) => {
+  return planSpeech(text);
+});
+
+ipcMain.handle("synthesize-speech-chunk", async (_event, chunk, voice) => {
+  return synthesizeSpeechChunk(chunk, voice);
+});
+
+ipcMain.handle("peek-window", async (_event, sourceId) => {
+  const id = sourceId || selectedSourceId;
+  if (!id) return null;
+
+  const sources = await desktopCapturer.getSources({
+    types: ["window"],
+    // Small thumbnail — fast change detection, not for OCR.
+    thumbnailSize: { width: 720, height: 900 },
+  });
+  const match = sources.find((source) => source.id === id);
+  if (!match || match.thumbnail.isEmpty()) return null;
+
+  const png = match.thumbnail.toPNG();
+  const hash = crypto.createHash("sha1").update(png).digest("hex");
+  return { id, hash, name: match.name };
+});
+
+ipcMain.handle("read-window-by-id", async (_event, sourceId) => {
+  const source = await resolveTargetWindow(sourceId || selectedSourceId);
+  return readWindowSource(source);
 });
 
 ipcMain.handle("resize-pill", async (_event, { width, height }) => {

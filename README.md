@@ -57,12 +57,16 @@ Optional: the window button (▣) lets you force a specific window if auto-pick 
 
 The app uses the **same voice as Terminal** `say "…"` — your Mac Spoken Content / system voice.
 
+Speech starts on the first sentences while the rest is still preparing, so you shouldn’t wait on a long load.
+
 1. System Settings → Accessibility → Spoken Content → System Voice  
 2. Pick an Enhanced/Premium English voice  
 3. Confirm in Terminal: `say "This is my system voice"`  
 4. Fully quit the app (Ctrl+C), then `~/Main-github/run.sh` and click **Read**
 
-The status line should say it’s using your system voice.
+### Follow as you scroll
+
+While reading, the app watches the window. If you scroll (or the page changes) and it settles, it catches up and reads the newly visible text. Click **Stop** to turn that off.
 
 ### Optional: cloud neural voice
 
@@ -92,7 +96,8 @@ Handbooks and magazines are read **left column top→bottom, then right column**
 | Can’t see other apps | Enable Screen Recording for the app in macOS Privacy settings |
 | Voice didn’t change after Spoken Content setting | Fully quit the app, run `say "test"` in Terminal, then `~/Main-github/update-and-run.sh` |
 | Reading pauses every line | Run `~/Main-github/update-and-run.sh` to get the latest build |
-| Voice sounds foreign / wrong language | Set Spoken Content to an English Enhanced voice; restart with `~/Main-github/run.sh` |
+| Voice takes a long time to start | Run `~/Main-github/update-and-run.sh` — speech now streams the first short chunk while the rest prepares |
+| Scroll doesn’t change what is read | Stay on the same window; after scrolling, wait a moment for it to settle; click Stop then Read if needed |
 | `npm` not found | Install Node.js LTS from nodejs.org, then open a **new** Terminal |
 
 ## Architecture

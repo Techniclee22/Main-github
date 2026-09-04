@@ -301,6 +301,45 @@
             finishIdle();
           }
         },
+        /**
+         * Play audio chunk-by-chunk. First chunk can start while later ones
+         * are still being synthesized (prefetch via getChunk).
+         * @param {{
+         *   chunkCount: number,
+         *   getChunk: (index: number) => Promise<{parts?: string[], mime?: string, engine?: string, voice?: string, text?: string}>,
+         * }} options
+         */
+        async speakStream({ chunkCount, getChunk }) {
+          stopped = false;
+          cleanupPlayback();
+          words = [];
+          wordIndex = -1;
+          speaking = true;
+          paused = false;
+          // Mark busy immediately so Pause/Stop stay available while the
+          // first short chunk is still synthesizing.
+          onState?.("speaking");
+
+          try {
+            for (let i = 0; i < chunkCount; i += 1) {
+              if (stopped) break;
+              const prepared = await getChunk(i);
+              if (stopped) break;
+              if (prepared?.text) {
+                words = tokenizeWords(prepared.text);
+                wordIndex = -1;
+              }
+              if (prepared?.parts?.length) {
+                await playAudioParts(prepared);
+              } else if (prepared?.text) {
+                await speakWithBrowser(prepared.text);
+              }
+            }
+          } finally {
+            cleanupPlayback();
+            finishIdle();
+          }
+        },
         pause() {
           if (audioEl && !audioEl.paused) {
             paused = true;
@@ -338,6 +377,9 @@
         },
         get paused() {
           return paused;
+        },
+        get stopped() {
+          return stopped;
         },
       };
     },

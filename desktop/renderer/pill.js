@@ -17,9 +17,20 @@
   // True only after an explicit picker choice — next Read uses that window once.
   let forceSelected = false;
 
+  /** @type {ReturnType<typeof setInterval> | null} */
+  let followTimer = null;
+  let followGeneration = 0;
+  let lastContentHash = null;
+  let pendingHash = null;
+  let pendingStable = 0;
+  let followActive = false;
+
   const speech = window.ReadToMeSpeech.create({
     onState(state) {
       applyPlaybackUi(state);
+      if (state === "idle" && !reading && !followActive) {
+        stopFollow();
+      }
     },
     onVoiceInfo(info) {
       if (info?.voice) setStatus(`Voice: ${info.voice}`);
@@ -34,15 +45,172 @@
     if (state && typeof state === "object") return;
     const speaking = state === "speaking";
     const paused = state === "paused";
-    const busy = speaking || paused;
+    const playbackBusy = speaking || paused;
+    // Keep Stop available while scroll-follow is on, even between pages.
     pauseBtn.hidden = !speaking;
     resumeBtn.hidden = !paused;
-    stopBtn.hidden = !busy;
-    readBtn.hidden = busy;
-    // Stop used to leave Read disabled forever — always clear that here.
-    if (!busy && !reading) {
+    stopBtn.hidden = !(playbackBusy || followActive);
+    readBtn.hidden = playbackBusy;
+    if (!playbackBusy && !reading) {
       readBtn.disabled = false;
     }
+  }
+
+  function stopFollow() {
+    followActive = false;
+    followGeneration += 1;
+    if (followTimer) {
+      clearInterval(followTimer);
+      followTimer = null;
+    }
+    pendingHash = null;
+    pendingStable = 0;
+    applyPlaybackUi(
+      speech.speaking ? "speaking" : speech.paused ? "paused" : "idle",
+    );
+  }
+
+  function textFingerprint(text) {
+    return String(text || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .slice(0, 400);
+  }
+
+  function textsDifferEnough(a, b) {
+    const left = textFingerprint(a);
+    const right = textFingerprint(b);
+    if (!left || !right) return true;
+    if (left === right) return false;
+    // Cheap overlap check on leading words.
+    const aw = left.split(" ").slice(0, 40);
+    const bw = new Set(right.split(" ").slice(0, 40));
+    let overlap = 0;
+    for (const word of aw) {
+      if (bw.has(word)) overlap += 1;
+    }
+    const ratio = overlap / Math.max(aw.length, 1);
+    return ratio < 0.55;
+  }
+
+  async function speakTextStreaming(text, { statusPrefix } = {}) {
+    const plan = await window.readToMe.planSpeech(text);
+    if (!plan.chunks?.length) throw new Error("Nothing to speak.");
+
+    setStatus(
+      statusPrefix ||
+        `Speaking with your system voice (${plan.voice})…`,
+    );
+
+    const cache = new Map();
+    const fetchChunk = (index) => {
+      if (cache.has(index)) return cache.get(index);
+      const pending = window.readToMe.synthesizeSpeechChunk(
+        plan.chunks[index],
+        plan.voice,
+      );
+      cache.set(index, pending);
+      return pending;
+    };
+
+    // Prefetch the first two chunks so playback starts ASAP.
+    void fetchChunk(0);
+    if (plan.chunks.length > 1) void fetchChunk(1);
+
+    await speech.speakStream({
+      chunkCount: plan.chunks.length,
+      async getChunk(index) {
+        if (index + 2 < plan.chunks.length) void fetchChunk(index + 2);
+        return fetchChunk(index);
+      },
+    });
+  }
+
+  function startFollow(windowId, seedText) {
+    stopFollow();
+    if (!windowId) return;
+
+    followActive = true;
+    applyPlaybackUi(
+      speech.speaking ? "speaking" : speech.paused ? "paused" : "idle",
+    );
+    const generation = followGeneration;
+    let currentText = seedText || "";
+    lastContentHash = null;
+    pendingHash = null;
+    pendingStable = 0;
+
+    followTimer = setInterval(() => {
+      void (async () => {
+        if (generation !== followGeneration || !followActive) return;
+        try {
+          const peek = await window.readToMe.peekWindow(windowId);
+          if (!peek?.hash || generation !== followGeneration) return;
+
+          if (!lastContentHash) {
+            lastContentHash = peek.hash;
+            return;
+          }
+
+          if (peek.hash === lastContentHash) {
+            pendingHash = null;
+            pendingStable = 0;
+            return;
+          }
+
+          // Wait until the new view stays stable briefly (scroll finished).
+          if (peek.hash === pendingHash) {
+            pendingStable += 1;
+          } else {
+            pendingHash = peek.hash;
+            pendingStable = 1;
+            setStatus("Page moving…");
+            return;
+          }
+
+          if (pendingStable < 2) return;
+
+          lastContentHash = peek.hash;
+          pendingHash = null;
+          pendingStable = 0;
+
+          setStatus("Page changed — catching up…");
+          const next = await window.readToMe.readWindowById(windowId);
+          if (generation !== followGeneration || !followActive) return;
+
+          if (!textsDifferEnough(currentText, next.text)) {
+            if (speech.speaking || speech.paused) setStatus("Speaking…");
+            else setStatus("Following the page — scroll anytime");
+            return;
+          }
+
+          currentText = next.text;
+          if (next.title) {
+            selected = { id: next.id || windowId, name: next.title };
+            targetLabel.textContent = next.title;
+            targetLabel.title = next.title;
+          }
+
+          // Interrupt current audio (if any) and read the newly visible page.
+          if (speech.speaking || speech.paused) speech.stop();
+          reading = true;
+          try {
+            await speakTextStreaming(next.text, {
+              statusPrefix: "Speaking new page…",
+            });
+            if (followActive) setStatus("Following the page — scroll anytime");
+            else setStatus("");
+          } finally {
+            reading = false;
+            readBtn.disabled = false;
+          }
+        } catch (error) {
+          // Keep following; one failed peek shouldn't kill the session.
+          console.warn("Follow-page check failed:", error?.message || error);
+        }
+      })();
+    }, 1400);
   }
 
   async function resizeForPicker(open) {
@@ -102,6 +270,7 @@
   readBtn.addEventListener("click", async () => {
     reading = true;
     readBtn.disabled = true;
+    stopFollow();
     speech.stop();
     if (pickerOpen) {
       pickerOpen = false;
@@ -111,8 +280,6 @@
 
     setStatus("Reading the active window…");
     try {
-      // Default: whatever you were just looking at (PDF in Preview, etc.).
-      // Picker override applies for one Read, then we're back to active-window mode.
       const useForced = forceSelected && selected.id;
       forceSelected = false;
       const result = useForced
@@ -129,30 +296,32 @@
         result.columns > 1
           ? ` · ${result.columns} columns (left, then right)`
           : "";
-      setStatus(`Preparing English voice${cols}…`);
-      const audio = await window.readToMe.synthesizeSpeech(result.text);
-      if (audio?.engine === "neural") {
-        setStatus("Speaking (natural English)…");
-      } else if (audio?.engine === "macos-say") {
-        setStatus(`Speaking with your system voice (${audio.voice})…`);
-      } else {
-        setStatus("Speaking…");
-      }
-      await speech.speak(audio?.text || result.text, audio);
-      setStatus("");
+      setStatus(`Starting voice${cols}…`);
+
+      // Stream speech: first sentences play while later ones synthesize.
+      const speakPromise = speakTextStreaming(result.text);
+      // Follow scrolls on this window while speaking.
+      startFollow(result.id || selected.id, result.text);
+      await speakPromise;
+      if (followActive) setStatus("Following the page — scroll anytime");
+      else setStatus("");
     } catch (error) {
+      stopFollow();
       setStatus(error?.message || "Could not read that window");
       applyPlaybackUi("idle");
     } finally {
       reading = false;
       readBtn.disabled = false;
-      applyPlaybackUi(speech.speaking ? "speaking" : speech.paused ? "paused" : "idle");
+      applyPlaybackUi(
+        speech.speaking ? "speaking" : speech.paused ? "paused" : "idle",
+      );
     }
   });
 
   pauseBtn.addEventListener("click", () => speech.pause());
   resumeBtn.addEventListener("click", () => speech.resume());
   stopBtn.addEventListener("click", () => {
+    stopFollow();
     speech.stop();
     reading = false;
     readBtn.disabled = false;

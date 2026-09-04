@@ -7,6 +7,11 @@ contextBridge.exposeInMainWorld("readToMe", {
   getFocusHint: () => ipcRenderer.invoke("get-focus-hint"),
   readSelectedWindow: () => ipcRenderer.invoke("read-selected-window"),
   readActiveWindow: () => ipcRenderer.invoke("read-active-window"),
+  readWindowById: (id) => ipcRenderer.invoke("read-window-by-id", id),
+  peekWindow: (id) => ipcRenderer.invoke("peek-window", id),
   synthesizeSpeech: (text) => ipcRenderer.invoke("synthesize-speech", text),
+  planSpeech: (text) => ipcRenderer.invoke("plan-speech", text),
+  synthesizeSpeechChunk: (chunk, voice) =>
+    ipcRenderer.invoke("synthesize-speech-chunk", chunk, voice),
   resizePill: (size) => ipcRenderer.invoke("resize-pill", size),
 });

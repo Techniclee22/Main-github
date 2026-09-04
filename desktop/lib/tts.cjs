@@ -36,22 +36,40 @@ function reflowForSpeech(text) {
     .trim();
 }
 
-function chunkText(text, maxChars = 1400) {
+/**
+ * Split at a natural boundary near maxChars.
+ */
+function cutNear(rest, maxChars) {
+  let cut = rest.lastIndexOf(". ", maxChars);
+  if (cut < maxChars * 0.35) cut = rest.lastIndexOf("? ", maxChars);
+  if (cut < maxChars * 0.35) cut = rest.lastIndexOf("! ", maxChars);
+  if (cut < maxChars * 0.35) cut = rest.lastIndexOf("; ", maxChars);
+  if (cut < maxChars * 0.35) cut = rest.lastIndexOf(", ", maxChars);
+  if (cut < maxChars * 0.35) cut = rest.lastIndexOf(" ", maxChars);
+  if (cut < maxChars * 0.35) cut = maxChars;
+  const end = cut + (".?!;".includes(rest[cut]) ? 2 : 0);
+  return end;
+}
+
+/**
+ * Small chunks → first audio starts fast; later chunks synthesize while playing.
+ * First chunk is especially short so `say` returns sooner.
+ */
+function chunkText(text, maxChars = 380, firstMaxChars = 220) {
   const clean = reflowForSpeech(text);
   if (!clean) return [];
-  if (clean.length <= maxChars) return [clean];
+  if (clean.length <= firstMaxChars) return [clean];
 
   const chunks = [];
   let rest = clean;
+
+  // Prefer a quick first sentence/clause so playback can begin ASAP.
+  const firstEnd = cutNear(rest, firstMaxChars);
+  chunks.push(rest.slice(0, firstEnd).trim());
+  rest = rest.slice(firstEnd).trim();
+
   while (rest.length > maxChars) {
-    let cut = rest.lastIndexOf(". ", maxChars);
-    if (cut < maxChars * 0.45) cut = rest.lastIndexOf("? ", maxChars);
-    if (cut < maxChars * 0.45) cut = rest.lastIndexOf("! ", maxChars);
-    if (cut < maxChars * 0.45) cut = rest.lastIndexOf("; ", maxChars);
-    if (cut < maxChars * 0.45) cut = rest.lastIndexOf(", ", maxChars);
-    if (cut < maxChars * 0.45) cut = rest.lastIndexOf(" ", maxChars);
-    if (cut < maxChars * 0.45) cut = maxChars;
-    const end = cut + (".?!;".includes(rest[cut]) ? 2 : 0);
+    const end = cutNear(rest, maxChars);
     chunks.push(rest.slice(0, end).trim());
     rest = rest.slice(end).trim();
   }
@@ -59,10 +77,6 @@ function chunkText(text, maxChars = 1400) {
   return chunks;
 }
 
-/**
- * Best-effort label for status UI only.
- * Prefs keys are often stale across macOS versions — never use this for `say -v`.
- */
 async function readSystemVoiceLabel() {
   if (process.platform !== "darwin") return null;
 
@@ -99,55 +113,112 @@ async function readSystemVoiceLabel() {
   return null;
 }
 
-/**
- * On Mac, always match Terminal `say "..."`: omit `-v`.
- * Passing `-v` from prefs/fallbacks is what kept the app stuck on Samantha.
- */
+/** @type {{ voice: string, useSystemDefault: boolean } | null} */
+let cachedVoiceChoice = null;
+
 async function pickSayVoice() {
+  if (cachedVoiceChoice) return cachedVoiceChoice;
   if (process.platform !== "darwin") {
-    return { voice: "Samantha", useSystemDefault: false };
+    cachedVoiceChoice = { voice: "Samantha", useSystemDefault: false };
+    return cachedVoiceChoice;
   }
   const label = (await readSystemVoiceLabel()) || "System voice";
-  return { voice: label, useSystemDefault: true };
+  cachedVoiceChoice = { voice: label, useSystemDefault: true };
+  return cachedVoiceChoice;
 }
 
-async function synthesizeWithSay(text, voiceChoice) {
-  const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "read-to-me-"));
-  const chunks = chunkText(text);
-  const wavParts = [];
-  const label = voiceChoice?.voice || "System voice";
+/**
+ * Synthesize one short chunk to WAV.
+ * Prefer `say` writing WAV directly (skips afconvert) for lower latency.
+ */
+async function synthesizeOneSayChunk(chunk, label, dir, index) {
+  const wavPath = path.join(dir, `part-${index}.wav`);
+  const aiffPath = path.join(dir, `part-${index}.aiff`);
 
-  for (let i = 0; i < chunks.length; i += 1) {
-    const aiffPath = path.join(dir, `part-${i}.aiff`);
-    const wavPath = path.join(dir, `part-${i}.wav`);
+  // No -v on macOS → Spoken Content / system voice (matches Terminal `say`).
+  const baseArgs = ["-r", "175"];
+  if (process.platform !== "darwin") {
+    baseArgs.unshift("-v", label || "Samantha");
+  }
 
-    // Critical: do NOT pass -v on macOS.
-    // Terminal `say "text"` uses Spoken Content; `-v Name` overrides it.
-    const args = ["-r", "170", "-o", aiffPath, chunks[i]];
-    if (process.platform !== "darwin") {
-      args.unshift("-v", label);
-    }
-
-    await execFileAsync("say", args);
+  try {
+    // Direct WAV is much faster than AIFF + afconvert.
+    await execFileAsync("say", [
+      ...baseArgs,
+      "-o",
+      wavPath,
+      "--data-format=LEI16@16000",
+      chunk,
+    ]);
+  } catch {
+    // Older macOS / non-WAV `say`: fall back to AIFF → afconvert.
+    await execFileAsync("say", [...baseArgs, "-o", aiffPath, chunk]);
     await execFileAsync("afconvert", [
       "-f",
       "WAVE",
       "-d",
-      "LEI16@22050",
+      "LEI16@16000",
       aiffPath,
       wavPath,
     ]);
-    wavParts.push(await fs.promises.readFile(wavPath));
+    void fs.promises.unlink(aiffPath).catch(() => {});
   }
 
+  const buf = await fs.promises.readFile(wavPath);
+  void fs.promises.unlink(wavPath).catch(() => {});
+  return buf.toString("base64");
+}
+
+/**
+ * Plan speech without synthesizing — returns small text chunks + voice label.
+ */
+async function planSpeech(text) {
   const clean = reflowForSpeech(text);
+  if (!clean) throw new Error("Nothing to speak.");
+
+  const voiceChoice = await pickSayVoice();
   return {
-    engine: "macos-say",
-    voice: label,
-    parts: wavParts.map((buf) => buf.toString("base64")),
-    mime: "audio/wav",
-    wordCount: clean.split(/\s+/).filter(Boolean).length,
+    engine: process.platform === "darwin" ? "macos-say" : "browser",
+    voice: voiceChoice.voice,
+    chunks: chunkText(clean),
     text: clean,
+    wordCount: clean.split(/\s+/).filter(Boolean).length,
+  };
+}
+
+/**
+ * Synthesize a single short chunk quickly (for streamed playback).
+ */
+async function synthesizeSpeechChunk(chunkTextValue, voiceLabel) {
+  const chunk = reflowForSpeech(chunkTextValue);
+  if (!chunk) throw new Error("Empty speech chunk.");
+
+  if (process.platform === "darwin") {
+    const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "read-to-me-"));
+    try {
+      const label = voiceLabel || (await pickSayVoice()).voice;
+      const part = await synthesizeOneSayChunk(chunk, label, dir, 0);
+      return {
+        engine: "macos-say",
+        voice: label,
+        parts: [part],
+        mime: "audio/wav",
+        text: chunk,
+        wordCount: chunk.split(/\s+/).filter(Boolean).length,
+      };
+    } finally {
+      void fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+
+  // Non-Mac / fallback: let the renderer use browser TTS for this chunk.
+  return {
+    engine: "browser",
+    voice: "en-US",
+    parts: [],
+    mime: null,
+    text: chunk,
+    wordCount: chunk.split(/\s+/).filter(Boolean).length,
   };
 }
 
@@ -195,6 +266,7 @@ async function synthesizeWithGateway(text) {
   };
 }
 
+/** Full synthesize (used rarely; streaming path is preferred). */
 async function synthesizeSpeech(text) {
   const clean = reflowForSpeech(text);
   if (!clean) throw new Error("Nothing to speak.");
@@ -206,24 +278,43 @@ async function synthesizeSpeech(text) {
     console.warn("Neural TTS unavailable, falling back:", error.message);
   }
 
-  if (process.platform === "darwin") {
-    const voiceChoice = await pickSayVoice();
-    return synthesizeWithSay(clean, voiceChoice);
+  const plan = await planSpeech(clean);
+  if (plan.engine === "browser") {
+    return {
+      engine: "browser",
+      voice: "en-US",
+      parts: [],
+      mime: null,
+      wordCount: plan.wordCount,
+      text: plan.text,
+    };
   }
 
-  return {
-    engine: "browser",
-    voice: "en-US",
-    parts: [],
-    mime: null,
-    wordCount: clean.split(/\s+/).filter(Boolean).length,
-    text: clean,
-  };
+  const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "read-to-me-"));
+  try {
+    const wavParts = [];
+    for (let i = 0; i < plan.chunks.length; i += 1) {
+      wavParts.push(await synthesizeOneSayChunk(plan.chunks[i], plan.voice, dir, i));
+    }
+    return {
+      engine: "macos-say",
+      voice: plan.voice,
+      parts: wavParts,
+      mime: "audio/wav",
+      wordCount: plan.wordCount,
+      text: plan.text,
+    };
+  } finally {
+    void fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 module.exports = {
   synthesizeSpeech,
+  synthesizeSpeechChunk,
+  planSpeech,
   pickSayVoice,
   readSystemVoiceLabel,
   reflowForSpeech,
+  chunkText,
 };
