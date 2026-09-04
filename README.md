@@ -61,7 +61,7 @@ The app uses the **same voice as Terminal** `say "…"` — your Mac Spoken Cont
 1. System Settings → Accessibility → Spoken Content → System Voice  
 2. Pick an Enhanced/Premium English voice  
 3. Confirm in Terminal: `say "This is my system voice"`  
-4. Fully quit the app (Ctrl+C), then `npm start` and click **Read**
+4. Fully quit the app (Ctrl+C), then `~/Main-github/run.sh` and click **Read**
 
 The status line should say it’s using your system voice.
 
