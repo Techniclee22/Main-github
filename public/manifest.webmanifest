@@ -1,0 +1,18 @@
+{
+  "name": "Read to Me",
+  "short_name": "Read to Me",
+  "description": "Point your device at text and hear it read aloud.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#eef6f3",
+  "theme_color": "#0f4c4a",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
