@@ -12,7 +12,7 @@ export function HighlightedText({
   if (!text) {
     return (
       <p className="reader-empty">
-        Captured or pasted text will appear here so you can follow along.
+        Text from your shared screen will appear here so you can follow along.
       </p>
     );
   }

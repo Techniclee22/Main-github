@@ -1,57 +1,101 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CameraCapture } from "@/components/CameraCapture";
 import { HighlightedText } from "@/components/HighlightedText";
+import { ScreenCapture } from "@/components/ScreenCapture";
 import { useSpeech } from "@/hooks/use-speech";
 import { recognizeImageText } from "@/lib/ocr";
 
-type CaptureMode = "camera" | "upload" | "paste";
+type CaptureMode = "screen" | "camera" | "upload" | "paste";
+
+function normalizeForCompare(value: string) {
+  return value.replace(/\s+/g, " ").trim().toLowerCase();
+}
 
 export function ReaderApp() {
-  const [mode, setMode] = useState<CaptureMode>("paste");
+  const [mode, setMode] = useState<CaptureMode>("screen");
   const [text, setText] = useState("");
   const [ocrStatus, setOcrStatus] = useState<string | null>(null);
   const [ocrProgress, setOcrProgress] = useState(0);
   const [busy, setBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [watchMode, setWatchMode] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const lastSpokenRef = useRef("");
+  const ocrLockRef = useRef(false);
 
   const speech = useSpeech();
+  const speakRef = useRef(speech.speak);
+  const setErrorRef = useRef(speech.setError);
 
-  async function runOcr(source: File | Blob) {
-    setBusy(true);
-    setOcrStatus("Reading the image…");
-    setOcrProgress(0);
-    speech.setError(null);
-    try {
-      const result = await recognizeImageText(source, ({ status, progress }) => {
-        setOcrStatus(status.replace(/_/g, " "));
-        setOcrProgress(Math.round(progress * 100));
-      });
-      if (!result) {
-        speech.setError(
-          "No readable text was found. Try a clearer photo with good lighting.",
+  useEffect(() => {
+    speakRef.current = speech.speak;
+    setErrorRef.current = speech.setError;
+  }, [speech.speak, speech.setError]);
+
+  const runOcr = useCallback(
+    async (source: File | Blob, options?: { fromWatch?: boolean }) => {
+      if (ocrLockRef.current) return;
+      ocrLockRef.current = true;
+      setBusy(true);
+      setOcrStatus(
+        options?.fromWatch
+          ? "Checking the shared screen…"
+          : "Reading what’s on screen…",
+      );
+      setOcrProgress(0);
+      setErrorRef.current(null);
+
+      try {
+        const result = await recognizeImageText(
+          source,
+          ({ status, progress }) => {
+            setOcrStatus(status.replace(/_/g, " "));
+            setOcrProgress(Math.round(progress * 100));
+          },
+        );
+
+        if (!result) {
+          if (!options?.fromWatch) {
+            setErrorRef.current(
+              "No readable text was found on that screen. Try a clearer view, larger text, or scroll so more text is visible.",
+            );
+          }
+          setOcrStatus(null);
+          return;
+        }
+
+        const normalized = normalizeForCompare(result);
+        if (
+          options?.fromWatch &&
+          normalized === normalizeForCompare(lastSpokenRef.current)
+        ) {
+          setOcrStatus("Same content — still watching…");
+          window.setTimeout(() => setOcrStatus(null), 1200);
+          return;
+        }
+
+        setText(result);
+        lastSpokenRef.current = result;
+        setOcrStatus("Text ready. Starting playback…");
+        await speakRef.current(result);
+        setOcrStatus(null);
+      } catch (error) {
+        setErrorRef.current(
+          error instanceof Error
+            ? error.message
+            : "Could not read text from the shared screen.",
         );
         setOcrStatus(null);
-        return;
+      } finally {
+        setBusy(false);
+        setOcrProgress(0);
+        ocrLockRef.current = false;
       }
-      setText(result);
-      setOcrStatus("Text ready. Starting playback…");
-      await speech.speak(result);
-      setOcrStatus(null);
-    } catch (error) {
-      speech.setError(
-        error instanceof Error
-          ? error.message
-          : "Could not read text from that image.",
-      );
-      setOcrStatus(null);
-    } finally {
-      setBusy(false);
-      setOcrProgress(0);
-    }
-  }
+    },
+    [],
+  );
 
   function onFileChange(fileList: FileList | null) {
     const file = fileList?.[0];
@@ -65,19 +109,21 @@ export function ReaderApp() {
   return (
     <section className="app-shell" aria-labelledby="reader-heading">
       <div className="app-intro">
-        <h2 id="reader-heading">Point, capture, listen</h2>
+        <h2 id="reader-heading">Share your screen. Hear it spoken.</h2>
         <p>
-          Hold your device up to a page, sign, screen, or label. We extract the
-          text on your device, then read it aloud.
+          Choose a browser tab, PDF, document, or another app window. Read to Me
+          looks at what is shared and reads the text aloud — no copy-paste
+          required.
         </p>
       </div>
 
       <div className="mode-tabs" role="tablist" aria-label="How to capture text">
         {(
           [
-            ["paste", "Type or paste"],
+            ["screen", "Screen"],
             ["camera", "Camera"],
             ["upload", "Photo"],
+            ["paste", "Paste"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -88,7 +134,10 @@ export function ReaderApp() {
             aria-controls="capture-panel"
             id={`mode-${id}`}
             className={`mode-tab${mode === id ? " is-active" : ""}`}
-            onClick={() => setMode(id)}
+            onClick={() => {
+              setWatchMode(false);
+              setMode(id);
+            }}
           >
             {label}
           </button>
@@ -101,6 +150,17 @@ export function ReaderApp() {
         role="tabpanel"
         aria-labelledby={`mode-${mode}`}
       >
+        {mode === "screen" ? (
+          <ScreenCapture
+            disabled={busy}
+            watchMode={watchMode}
+            onWatchModeChange={setWatchMode}
+            onFrame={(blob) =>
+              void runOcr(blob, { fromWatch: watchMode })
+            }
+          />
+        ) : null}
+
         {mode === "camera" ? (
           <CameraCapture
             onCapture={(blob) => void runOcr(blob)}
@@ -139,7 +199,7 @@ export function ReaderApp() {
               className="paste-area"
               value={text}
               onChange={(event) => setText(event.target.value)}
-              placeholder="Paste or type anything you want spoken…"
+              placeholder="Optional: paste text if you already have it…"
               rows={8}
             />
           </label>
@@ -175,7 +235,7 @@ export function ReaderApp() {
                   ? "Paused"
                   : speech.status === "loading"
                     ? "Loading voice"
-                    : "Waiting for text"}
+                    : "Waiting for screen text"}
           </span>
         </div>
         <div className="reader-scroll">

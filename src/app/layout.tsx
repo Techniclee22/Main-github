@@ -17,7 +17,7 @@ const sourceSans = Source_Sans_3({
 export const metadata: Metadata = {
   title: "Read to Me — hear what’s on your screen",
   description:
-    "Accessibility reading app: point your device at text and hear it spoken aloud in a natural voice.",
+    "Share a tab, PDF, or app window and hear the text spoken aloud. Assistive screen reading for anyone who needs the world spoken.",
   applicationName: "Read to Me",
   manifest: "/manifest.webmanifest",
   appleWebApp: {

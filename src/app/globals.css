@@ -307,19 +307,35 @@ a {
   margin-bottom: 1rem;
 }
 
+.screen-capture,
+.camera {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.screen-lede {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.5;
+  max-width: 40rem;
+}
+
+.screen-live,
 .camera-live {
   display: grid;
   gap: 0.85rem;
 }
 
+.screen-video,
 .camera-video {
   width: 100%;
   max-height: 420px;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: var(--radius);
   background: #0b2422;
 }
 
+.screen-actions,
 .camera-actions,
 .player,
 .upload-block {
@@ -327,6 +343,12 @@ a {
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
+}
+
+.btn.is-pressed {
+  background: rgba(15, 76, 74, 0.12);
+  border-color: var(--teal);
+  color: var(--teal);
 }
 
 .paste-label {

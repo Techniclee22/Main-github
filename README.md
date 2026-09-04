@@ -1,18 +1,20 @@
 # Read to Me
 
-Device-agnostic assistive reader: point a phone, tablet, or computer at text and hear it spoken aloud.
+Assistive reader that **sees what is on your screen** and speaks it aloud.
 
-Built for people who cannot easily read what is on a screen or in the world in front of them — blindness and low vision, dyslexia, literacy barriers, cognitive load, or temporary situations.
+Share a browser tab, PDF window, or another app. Read to Me captures that
+surface, extracts the text, and reads it — for people who cannot easily read
+what is in front of them.
 
 ## What works today
 
-- **Camera capture** — open the camera, snap a page/sign/screen, OCR runs on-device
-- **Photo upload** — screenshots and images
-- **Type or paste** — any text
+- **Screen share (primary)** — pick a tab, window, or entire display; OCR runs on-device; text is spoken
+- **Keep watching** — re-read when shared content changes (scroll / navigate)
+- **Camera & photo** — point at paper, signs, or a second device
+- **Paste** — optional fallback if you already have text
 - **Device voices** — browser Web Speech (free, can work offline)
 - **Natural voices (optional)** — neural TTS via Vercel AI Gateway when configured
-- **Voice & speed controls** — choose a voice and playback rate
-- **Installable PWA** — add to home screen on phones and desktops
+- **Installable PWA**
 
 ## Run locally
 
@@ -23,24 +25,29 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-### Natural voices (optional)
+1. Click **Share screen to read**
+2. Choose the tab/window/PDF you want spoken
+3. Click **Read this screen**
 
-Set an AI Gateway key for cloud neural TTS:
+Screen share needs a desktop browser (Chrome, Edge, or Firefox). On a phone, use Camera or Photo.
+
+### Natural voices (optional)
 
 ```bash
 # .env.local
 AI_GATEWAY_API_KEY=your_key
 ```
 
-Without it, **Device voices** still work fully.
+Without it, device voices still work fully.
 
 ## Architecture
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the capture → extract → voice → playback pipeline and the roadmap toward screen share, extensions, and OS integrations.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Stack
 
 - Next.js (App Router) + TypeScript
+- Screen Capture API (`getDisplayMedia`)
 - Tesseract.js (on-device OCR)
 - Web Speech API + Vercel AI Gateway TTS
 - Progressive Web App manifest
