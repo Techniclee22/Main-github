@@ -209,7 +209,8 @@ async function getSourceScreenBounds(_sourceId) {
 
   if (process.platform !== "darwin") return fallback();
 
-  const appName = lastExternalFocus?.app;
+  const hint = await refreshFrontmost();
+  const appName = hint?.app;
   if (!appName || isOurProcessName(appName)) return fallback();
 
   try {
@@ -279,19 +280,23 @@ function hideReadingHighlight() {
 async function scrollTargetWindow() {
   if (process.platform !== "darwin") return { ok: false };
 
-  const appName = lastExternalFocus?.app;
-  if (!appName || isOurProcessName(appName)) return { ok: false };
+  const hint = await refreshFrontmost();
+  const appName = hint?.app;
+  if (!appName || isOurProcessName(appName)) {
+    return { ok: false, reason: "no-target" };
+  }
 
   const escaped = escapeAppleScriptString(appName);
   try {
-    // Activate + Page Down (keycode 121) ≈ one viewport.
+    // Page Down only — do not steal focus back to an old app.
     await execFileAsync(
       "osascript",
       [
         "-e",
         `tell application "System Events"
-  set frontmost of application process "${escaped}" to true
-  delay 0.08
+  tell application process "${escaped}"
+    if frontmost is false then return
+  end tell
   key code 121
 end tell`,
       ],
@@ -312,12 +317,8 @@ function isOurProcessName(name) {
  * Remember the frontmost non-pill app/window so Read can target
  * "whatever you were just looking at" after clicking the pill.
  */
-async function pollExternalFocus() {
-  if (process.platform !== "darwin") return;
-  if (pillWindow && !pillWindow.isDestroyed() && pillWindow.isFocused()) {
-    return;
-  }
-
+async function refreshFrontmost() {
+  if (process.platform !== "darwin") return lastExternalFocus;
   try {
     const { stdout } = await execFileAsync("osascript", [
       "-e",
@@ -325,14 +326,19 @@ async function pollExternalFocus() {
     ]);
     const raw = stdout.trim();
     const [appName, title = ""] = raw.split("|||");
-    if (!appName || isOurProcessName(appName)) return;
+    if (!appName || isOurProcessName(appName)) return lastExternalFocus;
     lastExternalFocus = {
       app: appName.trim(),
       title: (title || "").trim(),
     };
   } catch {
-    // No front window / accessibility permission — ignore.
+    // No front window / accessibility permission — keep last hint.
   }
+  return lastExternalFocus;
+}
+
+async function pollExternalFocus() {
+  await refreshFrontmost();
 }
 
 function startFocusPolling() {
@@ -369,21 +375,24 @@ function scoreWindowCandidate(win, focus) {
   const name = (win.name || "").toLowerCase();
   let score = 0;
 
+  if (focus?.app) {
+    const app = focus.app.toLowerCase();
+    if (name.includes(app) || app.includes(name)) score += 120;
+    if (focus.title) {
+      const title = focus.title.toLowerCase();
+      if (title && (name.includes(title) || title.includes(name))) score += 80;
+    }
+    // PDF bonus only when the user is actually in Preview (or similar).
+    const readingApp =
+      /preview|acrobat|adobe/.test(app) || /\.pdf\b/.test(app);
+    if (readingApp && /\.pdf\b/.test(name)) score += 40;
+    if (!readingApp && /\.pdf\b/.test(name) && !name.includes(app)) score -= 60;
+    return score;
+  }
+
   if (/\.pdf\b/.test(name)) score += 50;
   if (/preview/.test(name)) score += 30;
   if (/acrobat|adobe|edge|chrome|safari|firefox|brave/.test(name)) score += 12;
-
-  if (focus?.title) {
-    const title = focus.title.toLowerCase();
-    if (title && name.includes(title)) score += 80;
-    if (title && title.includes(name)) score += 40;
-  }
-  if (focus?.app) {
-    const app = focus.app.toLowerCase();
-    if (name.includes(app)) score += 25;
-    if (app === "preview" && /\.pdf\b/.test(name)) score += 35;
-  }
-
   return score;
 }
 
@@ -669,7 +678,7 @@ ipcMain.handle("select-window", async (_event, sourceId) => {
 
 ipcMain.handle("get-selected-window", async () => selectedSourceId);
 
-ipcMain.handle("get-focus-hint", async () => lastExternalFocus);
+ipcMain.handle("get-focus-hint", async () => refreshFrontmost());
 
 ipcMain.handle("read-selected-window", async () => {
   const source = await resolveTargetWindow(selectedSourceId);
@@ -677,6 +686,7 @@ ipcMain.handle("read-selected-window", async () => {
 });
 
 ipcMain.handle("read-active-window", async () => {
+  await refreshFrontmost();
   const source = await resolveTargetWindow(null);
   return readWindowSource(source);
 });

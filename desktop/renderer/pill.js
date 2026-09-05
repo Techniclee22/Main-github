@@ -25,6 +25,9 @@
   let pendingProfile = null;
   let pendingStable = 0;
   let followActive = false;
+  let followFocusKey = "";
+  let pendingFocusKey = "";
+  let pendingFocusStable = 0;
 
   // Real scroll only after ~1/4 of the viewport has moved.
   const SCROLL_MOVE_FRACTION = 0.25;
@@ -79,6 +82,9 @@
     lastProfile = null;
     pendingProfile = null;
     pendingStable = 0;
+    followFocusKey = "";
+    pendingFocusKey = "";
+    pendingFocusStable = 0;
     applyPlaybackUi(
       speech.speaking ? "speaking" : speech.paused ? "paused" : "idle",
     );
@@ -231,10 +237,15 @@
     }
 
     const myCatchup = ++followCatchupId;
-    // Avoid the follow timer treating our own scroll as a user page-move.
     lastProfile = null;
     pendingProfile = null;
     pendingStable = 0;
+
+    const hint = await window.readToMe.getFocusHint();
+    const key = focusKey(hint);
+    if (key && followFocusKey && key !== followFocusKey) {
+      return;
+    }
 
     setStatus("Scrolling to continue…");
     const scrolled = await window.readToMe.scrollTargetWindow();
@@ -308,6 +319,11 @@
     }
   }
 
+  function focusKey(hint) {
+    if (!hint?.app) return "";
+    return `${String(hint.app).toLowerCase()}|${String(hint.title || "").toLowerCase()}`;
+  }
+
   function startFollow(windowId, seedText) {
     stopFollow();
     if (!windowId) return;
@@ -317,17 +333,70 @@
       speech.speaking ? "speaking" : speech.paused ? "paused" : "idle",
     );
     const generation = followGeneration;
+    let followedId = windowId;
     let currentText = seedText || "";
     lastProfile = null;
     pendingProfile = null;
     pendingStable = 0;
+    pendingFocusKey = "";
+    pendingFocusStable = 0;
     const armedAt = Date.now() + FOLLOW_ARM_MS;
 
     followTimer = setInterval(() => {
       void (async () => {
         if (generation !== followGeneration || !followActive) return;
         try {
-          const peek = await window.readToMe.peekWindow(windowId);
+          const hint = await window.readToMe.getFocusHint();
+          if (generation !== followGeneration || !followActive) return;
+          const key = focusKey(hint);
+          if (!followFocusKey && key) followFocusKey = key;
+
+          if (
+            Date.now() >= armedAt &&
+            key &&
+            followFocusKey &&
+            key !== followFocusKey
+          ) {
+            if (key !== pendingFocusKey) {
+              pendingFocusKey = key;
+              pendingFocusStable = 1;
+              return;
+            }
+            pendingFocusStable += 1;
+            if (pendingFocusStable < 2) return;
+
+            pendingFocusKey = "";
+            pendingFocusStable = 0;
+            setStatus(`Switching to ${hint.app}…`);
+            followCatchupId += 1;
+            if (speech.speaking || speech.paused) speech.stop();
+            const next = await window.readToMe.readActiveWindow();
+            if (generation !== followGeneration || !followActive) return;
+            followFocusKey = key;
+            followedId = next.id || followedId;
+            currentText = next.text;
+            if (next.title) {
+              selected = { id: followedId, name: next.title };
+              targetLabel.textContent = next.title;
+              targetLabel.title = next.title;
+            }
+            lastProfile = null;
+            pendingProfile = null;
+            pendingStable = 0;
+            reading = true;
+            try {
+              await speakTextStreaming(next.text, {
+                statusPrefix: "Speaking…",
+                windowId: followedId,
+              });
+            } finally {
+              reading = false;
+              readBtn.disabled = false;
+            }
+            return;
+          }
+
+          const peek = await window.readToMe.peekWindow(followedId);
           if (!peek?.profile?.length || generation !== followGeneration) return;
 
           if (Date.now() < armedAt) {
@@ -374,7 +443,7 @@
 
           const myCatchup = ++followCatchupId;
           setStatus("Page settled — reading…");
-          const next = await window.readToMe.readWindowById(windowId);
+          const next = await window.readToMe.readWindowById(followedId);
           if (
             myCatchup !== followCatchupId ||
             generation !== followGeneration ||
@@ -391,7 +460,7 @@
 
           currentText = next.text;
           if (next.title) {
-            selected = { id: next.id || windowId, name: next.title };
+            selected = { id: next.id || followedId, name: next.title };
             targetLabel.textContent = next.title;
             targetLabel.title = next.title;
           }
@@ -400,12 +469,12 @@
           try {
             await speakTextStreaming(next.text, {
               statusPrefix: "Speaking new page…",
-              windowId: next.id || windowId,
+              windowId: next.id || followedId,
             });
             if (myCatchup !== followCatchupId || !followActive) return;
             if (!speech.stopped) {
               await continueAfterPage(
-                next.id || windowId,
+                next.id || followedId,
                 next.text,
                 generation,
               );
