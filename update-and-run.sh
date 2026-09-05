@@ -12,8 +12,11 @@ if [[ ! -d "$DESKTOP_DIR" ]]; then
 fi
 
 cd "$REPO_DIR"
-BRANCH="$(git branch --show-current)"
-echo "→ Updating Read to Me (${BRANCH:-detached})…"
+BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+if [[ -z "${BRANCH}" || "${BRANCH}" == "HEAD" ]]; then
+  BRANCH="detached"
+fi
+echo "-> Updating Read to Me (${BRANCH})..."
 git fetch origin
 if git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1; then
   if ! git pull --ff-only; then
@@ -25,7 +28,7 @@ if git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1
     echo "  git stash -u && git pull --ff-only"
     echo
     echo "If you just want the latest from GitHub on this branch:"
-    echo "  git fetch origin && git reset --hard origin/${BRANCH:-HEAD}"
+    echo "  git fetch origin && git reset --hard origin/${BRANCH}"
     echo
     echo "If the app has moved onto main and this clone is still on an old feature branch:"
     echo "  git fetch origin && git checkout main && git pull"
@@ -36,13 +39,13 @@ else
   echo "No upstream for this clone. Using the files already on disk."
 fi
 
-echo "→ Installing dependencies…"
+echo "-> Installing dependencies..."
 cd "$DESKTOP_DIR"
 npm install
 
-echo "→ Checking API names (preload / main / renderer must match)…"
+echo "-> Checking API names (preload / main / renderer must match)..."
 npm run check-api
 
-echo "→ Starting the floating pill…"
+echo "-> Starting the floating pill..."
 echo "  (Quit later with Ctrl+C in this Terminal window)"
 npm start
