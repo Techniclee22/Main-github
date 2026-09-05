@@ -141,6 +141,8 @@ let liveSayGeneration = 0;
 let liveSayTempFile = null;
 let liveSpeakActive = false;
 let liveSayWake = null;
+/** Set by pauseLiveSay so a kill's close still replays even if Resume wins the race. */
+let liveSayReplayPending = false;
 /** @type {{ text: string, pieces: string[], pending: Promise<string>, token: number } | null} */
 let livePrefetch = null;
 let livePrefetchToken = 0;
@@ -181,6 +183,7 @@ function clearLivePrefetch() {
 function stopLivePlayer() {
   liveSayGeneration += 1;
   liveSayPaused = false;
+  liveSayReplayPending = false;
   liveSpeakActive = false;
   const proc = liveSayProc;
   const ownedFile = liveSayTempFile;
@@ -205,7 +208,17 @@ function stopLiveSay() {
 function pauseLiveSay() {
   if (!liveSpeakActive || liveSayPaused) return false;
   liveSayPaused = true;
-  signalLiveProc("SIGSTOP");
+  // Kill the player instead of SIGSTOP. Frozen afplay still lets CoreAudio
+  // drain ~1s of buffered audio; tearing the process down cuts that short.
+  // playInSeat replays the same WAV from the start on resume.
+  liveSayReplayPending = true;
+  const proc = liveSayProc;
+  signalLiveProc("SIGKILL");
+  if (proc && !proc.killed) {
+    try {
+      proc.kill("SIGKILL");
+    } catch {}
+  }
   return true;
 }
 
@@ -227,37 +240,57 @@ async function waitWhilePaused(generation) {
 }
 
 async function playInSeat(command, args, ownedFile, generation) {
-  if (!(await waitWhilePaused(generation))) {
-    unlinkOwnedSayFile(ownedFile);
-    return { interrupted: true };
-  }
-  return new Promise((resolve, reject) => {
-    if (generation !== liveSayGeneration) {
+  while (generation === liveSayGeneration) {
+    if (!(await waitWhilePaused(generation))) {
       unlinkOwnedSayFile(ownedFile);
-      resolve({ interrupted: true });
-      return;
+      return { interrupted: true };
     }
 
-    const proc = liveDeps.spawn(command, args, {
-      stdio: "ignore",
-      detached: true,
-    });
-    liveSayProc = proc;
-    liveSayTempFile = ownedFile;
-    if (liveSayPaused) signalLiveProc("SIGSTOP");
+    const outcome = await new Promise((resolve, reject) => {
+      if (generation !== liveSayGeneration) {
+        resolve({ interrupted: true });
+        return;
+      }
 
-    proc.on("error", (error) => {
-      if (liveSayProc === proc) liveSayProc = null;
-      unlinkOwnedSayFile(ownedFile);
-      reject(error);
+      const proc = liveDeps.spawn(command, args, {
+        stdio: "ignore",
+        detached: true,
+      });
+      liveSayProc = proc;
+      liveSayTempFile = ownedFile;
+      if (liveSayPaused) {
+        // Paused between spawn and play — tear down and wait for resume.
+        liveSayReplayPending = true;
+        signalLiveProc("SIGKILL");
+        try {
+          proc.kill("SIGKILL");
+        } catch {}
+      }
+
+      proc.on("error", (error) => {
+        if (liveSayProc === proc) liveSayProc = null;
+        unlinkOwnedSayFile(ownedFile);
+        reject(error);
+      });
+
+      proc.on("close", () => {
+        if (liveSayProc === proc) liveSayProc = null;
+        if (liveSayReplayPending && generation === liveSayGeneration) {
+          // Keep the WAV so resume can replay from the start.
+          liveSayReplayPending = false;
+          resolve({ replay: true });
+          return;
+        }
+        unlinkOwnedSayFile(ownedFile);
+        resolve({ interrupted: generation !== liveSayGeneration });
+      });
     });
 
-    proc.on("close", () => {
-      if (liveSayProc === proc) liveSayProc = null;
-      unlinkOwnedSayFile(ownedFile);
-      resolve({ interrupted: generation !== liveSayGeneration });
-    });
-  });
+    if (outcome.replay) continue;
+    return outcome;
+  }
+  unlinkOwnedSayFile(ownedFile);
+  return { interrupted: true };
 }
 
 function startSynth(text, isCurrent) {

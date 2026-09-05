@@ -225,6 +225,15 @@ function collectContractErrors(overrides = {}) {
     assertIncludes(errors, "pill.js create callback", pillSrc, cb);
   }
 
+  
+  // Prefetch of N+1 must not run before speakLive(N) starts — speakLive clears
+  // non-matching prefetch slots, which recreates a full synth gap between sentences.
+  if (/prefetchLive\([\s\S]{0,120}?await\s+speech\.speakLive/.test(pillSrc)) {
+    errors.push(
+      "pill.js must start speakLive(N) before prefetchLive(N+1); reverse order clears the prefetch",
+    );
+  }
+
   assertIncludes(errors, "pill.js calls speech.speakLive", pillSrc, "speech.speakLive");
   for (const [key, engine] of Object.entries(contract.engines)) {
     assertIncludes(

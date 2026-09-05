@@ -186,11 +186,15 @@
         setStatus(
           `${statusPrefix || "Speaking…"} (${i + 1}/${sentences.length})`,
         );
+        // Start speakLive first so its sync preamble can clear a stale prefetch.
+        // Prefetch N+1 only after that, while N synthesizes/plays — otherwise
+        // speakLive(N) throws away the warm work for N+1 and leaves a synth gap.
+        const speaking = speech.speakLive(sentences[i]);
         if (i + 1 < sentences.length && speechIsCurrent(session)) {
           speech.prefetchLive(sentences[i + 1]);
         }
         try {
-          await speech.speakLive(sentences[i]);
+          await speaking;
         } catch (error) {
           if (!speechIsCurrent(session)) break;
           console.warn("Live say failed, falling back:", error?.message || error);
