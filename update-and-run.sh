@@ -1,8 +1,4 @@
 #!/bin/bash
-# Update Read to Me from GitHub and start the floating pill.
-# Usage (from anywhere):
-#   ~/Main-github/update-and-run.sh
-
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

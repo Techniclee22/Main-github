@@ -8,3 +8,5 @@ ts	phase	decision	why	evidence	result
 2026-09-05T02:43:52Z	unit	landed node:test for ocr-layout and tts	orphaned check-ocr-layout.cjs never ran in npm	commit e84ed93, npm --prefix desktop run check	VERIFIED
 2026-09-05T02:43:52Z	ci	added GitHub Actions check.yml and retargeted root npm start to desktop	future agents were one npm start away from the frozen Next app	commit b0174b0 .github/workflows/check.yml	open
 2026-09-05T02:43:52Z	docs	rewrote ARCHITECTURE and AGENTS to match live say; froze src/	stale docs would send the next engineer into the wrong tree	commit 583c791 docs/ARCHITECTURE.md AGENTS.md src/README.md	open
+2026-09-05T02:47:46Z	critique	keep src frozen; do not extract FollowController or bind sourceId in this PR	window identity and follow races need Mac proof; a Linux-only rewrite would paper over them	how critic grok, transcript last bug 9d57955	open
+2026-09-05T02:47:46Z	critique	encode read result keys and document highlight/scroll ignore sourceId	contract already caught name drift; next cheap gate is payload keys plus true docs	desktop/api-contract.json readResultKeys, docs/ARCHITECTURE.md gotchas	open

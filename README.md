@@ -9,6 +9,7 @@ This is **not** a website you paste text into. It sits on top of whatever you al
 - A **Mac** (your PDF screenshot is Preview on macOS)
 - [Node.js 20+](https://nodejs.org) installed (one-time)
 - Screen Recording permission when macOS asks (required to see other windows)
+- Accessibility permission if macOS asks (required to place the reading band and send Page Down)
 
 ## First-time setup
 
@@ -73,10 +74,11 @@ Speech now starts through live macOS `say` (no waiting to render audio files), a
 
 ### Optional: cloud neural voice
 
+Read still uses live `say`. These keys are only for the unused `synthesize-speech` path.
+
 ```bash
-export OPENAI_API_KEY="sk-..."   # or AI_GATEWAY_API_KEY for Vercel AI Gateway
-cd ~/Main-github/desktop
-npm start
+export OPENAI_API_KEY="sk-..."
+# or: export AI_GATEWAY_API_KEY="..."
 ```
 
 ## Two-column PDFs
@@ -117,11 +119,12 @@ That verifies IPC names and the OCR/TTS unit tests. GitHub Actions runs the same
 | Voice or scroll catch-up still feels slow | Run `~/Main-github/update-and-run.sh` for the live-`say` + faster OCR build |
 | Empty window list | Open the PDF first, click Refresh in the picker |
 | “No readable text” | Zoom in on the page, make sure the text is visible, try Read again |
-| Can’t see other apps | Enable Screen Recording for the app in macOS Privacy settings |
+| Can’t see other apps | Enable Screen Recording (and Accessibility, if asked) in macOS Privacy settings |
 | Voice didn’t change after Spoken Content setting | Fully quit the app, run `say "test"` in Terminal, then `~/Main-github/update-and-run.sh` |
 | Reading pauses every line | Run `~/Main-github/update-and-run.sh` to get the latest build |
-| Voice takes a long time to start | Run `~/Main-github/update-and-run.sh` — speech now streams the first short chunk while the rest prepares |
-| Scroll doesn’t change what is read | Stay on the same window; after scrolling, wait a moment for it to settle; click Stop then Read if needed |
+| Voice takes a long time to start | Fully quit, then `~/Main-github/update-and-run.sh`. Live `say` should start when OCR finishes. |
+| Speech stops after a few words | Click Stop, then Read. This was the last Mac bug report and has not been retested here. |
+| Scroll doesn’t change what is read | Stay on the same window. After scrolling, wait a moment. Click Stop then Read if needed. The pill must not be stealing focus from Preview. |
 | `npm` not found | Install Node.js LTS from nodejs.org, then open a **new** Terminal |
 
 ## Architecture

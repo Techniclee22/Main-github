@@ -148,6 +148,12 @@ for (const cb of contract.pillSpeechCallbacks) {
 assertIncludes("pill.js calls speech.speakLive", pillSrc, "speech.speakLive");
 assertIncludes("tts.js live engine", ttsSrc, `"${contract.engines.liveMac}"`);
 
+for (const key of contract.readResultKeys || []) {
+  assertIncludes(`readWindowSource returns ${key}`, mainSrc, `${key}:`);
+}
+assertIncludes("readWindowSource keeps source.id", mainSrc, "id: source.id");
+assertIncludes("readWindowSource keeps source.name", mainSrc, "title: source.name");
+
 const htmlIds = extractDomIds(htmlSrc);
 const pillIds = extractGetElementIds(pillSrc);
 for (const id of contract.pillDomIds) {

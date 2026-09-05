@@ -11,7 +11,7 @@ The desktop app has **four layers that must use identical names**:
 3. `main.cjs` — `ipcMain.handle("channel-name", …)` and imports from `lib/tts.cjs`
 4. `lib/tts.cjs` — exported function names
 
-Each “speed up” / “fix follow” pass rewrote several of those files. Without a frozen vocabulary, renames landed in one layer only (`speakLive` vs `speakLive`, `stopFollow` vs `stopFollow`, `macos-say-live` vs `macos-say-live`, `pickerList` vs `pickerList`). The app still *looked* fine; at runtime a call hit `undefined` and speech/follow quietly failed.
+Each speed-up or follow fix rewrote several of those files. Without a frozen vocabulary, renames landed in one layer only (`speakLive` vs `speakNow`, `stopFollow` vs `stopFollowing`, `macos-say-live` vs `macos-say`, `pickerList` vs `windowList`). The app still looked fine. At runtime a call hit `undefined` and speech or follow quietly failed.
 
 ## Rules
 

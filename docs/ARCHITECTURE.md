@@ -73,11 +73,19 @@ sequenceDiagram
 
 Identifier drift has already broken speech. Change names in the contract and every consumer together.
 
-`main.cjs` quits on non-Mac platforms. Unit tests never load Electron.
+`app.on("window-all-closed")` quits only off Mac. The app still starts on Linux. Unit tests never load Electron.
 
-`desktop/renderer/speech.js` still contains `speechSynthesis` as a fallback. `pill.js` calls `speech.speakLive` first. Do not document that fallback as the product path.
+`desktop/renderer/speech.js` still contains `speechSynthesis`. `pill.js` calls `speech.speakLive` first. If live `say` fails on Mac, `synthesizeSpeechChunk` returns empty `parts`, so the fallback is browser TTS, not neural and not a WAV file.
 
-Follow state in `pill.js` is a handful of timers and generation counters (`speakSession`, `followGeneration`, `followTargetId`). Those exist because an older loop kept talking after retarget. Do not start a second speak loop without bumping `speakSession`.
+Highlight and Page Down ignore the Electron `sourceId` the pill passes. They use the frontmost external app from AppleScript. Capture uses `source.id`. Two Preview windows can OCR one frame and paint the band on the other.
+
+Page Down is a no-op while the pill holds focus. Scroll-follow after the user scrolls is the path that actually advances.
+
+`synthesize-speech` IPC is live. If `AI_GATEWAY_API_KEY` or `OPENAI_API_KEY` is set, that handler may send page text to the cloud. Read does not call it.
+
+Follow state in `pill.js` is a handful of timers and generation counters (`speakSession`, `followGeneration`, `followTargetId`). Those exist because an older loop kept talking after retarget. Do not start a second speak loop without bumping `speakSession`. `stopFollow()` must not bump `speakSession`. `startFollow()` calls it mid-Read.
+
+The last Mac report was speech stopping after a few words. The fix is `9d57955`. Nobody retested it here.
 
 `update-and-run.sh` fast-forwards whatever branch the clone is on. It does not pin a Cursor feature branch.
 
