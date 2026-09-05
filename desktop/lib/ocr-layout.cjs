@@ -268,7 +268,16 @@ function textFromOcrPage(page) {
     1,
   );
 
-  let words = (page.words || []).filter(isReadableWord);
+  let words = (page.words || []).filter((word) => {
+    if (!isReadableWord(word)) return false;
+    const box = word.bbox;
+    if (!box) return false;
+    // Drop broken tess boxes — they also correlate with the C++ "Invalid box" spam.
+    if (!(box.x1 > box.x0) || !(box.y1 > box.y0)) return false;
+    if (box.x0 < -2 || box.y0 < -2) return false;
+    if (box.x1 > pageWidth + 4 || box.y1 > pageHeight + 4) return false;
+    return true;
+  });
   words = dropNoisyHeader(words, pageHeight);
 
   if (words.length < 8) {

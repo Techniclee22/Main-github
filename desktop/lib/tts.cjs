@@ -193,7 +193,6 @@ async function speakLive(text) {
 
   stopLiveSay();
   const generation = liveSayGeneration;
-  const voiceChoice = await pickSayVoice();
 
   const file = path.join(
     os.tmpdir(),
@@ -202,9 +201,16 @@ async function speakLive(text) {
   await fs.promises.writeFile(file, clean, "utf8");
   liveSayTempFile = file;
 
-  // No -v on macOS → Spoken Content / system voice (matches Terminal `say`).
+  // On macOS: start `say` immediately (system Spoken Content voice).
+  // Don't block first audio on defaults/voice lookup.
+  const voicePromise =
+    process.platform === "darwin"
+      ? pickSayVoice().catch(() => ({ voice: "System voice" }))
+      : pickSayVoice();
+
   const args = ["-r", "185", "-f", file];
   if (process.platform !== "darwin") {
+    const voiceChoice = await voicePromise;
     args.unshift("-v", voiceChoice.voice || "Samantha");
   }
 
@@ -233,11 +239,11 @@ async function speakLive(text) {
       resolve({
         ok: true,
         interrupted: generation !== liveSayGeneration,
-        voice: voiceChoice.voice,
       });
     });
   });
 
+  const voiceChoice = await voicePromise;
   return {
     ok: true,
     engine: "macos-say-live",

@@ -149,13 +149,25 @@
     lastContentHash = null;
     pendingHash = null;
     pendingStable = 0;
+    // Ignore hash flicker while Preview settles after Read — prevents a
+    // false "Page moving…" on the first press.
+    const armedAt = Date.now() + 1800;
+    let catchupId = 0;
 
     followTimer = setInterval(() => {
       void (async () => {
-        if (generation !== followGeneration || !followActive || followBusy) return;
+        if (generation !== followGeneration || !followActive) return;
         try {
           const peek = await window.readToMe.peekWindow(windowId);
           if (!peek?.hash || generation !== followGeneration) return;
+
+          // Warm-up: keep refreshing the baseline quietly.
+          if (Date.now() < armedAt) {
+            lastContentHash = peek.hash;
+            pendingHash = null;
+            pendingStable = 0;
+            return;
+          }
 
           if (!lastContentHash) {
             lastContentHash = peek.hash;
@@ -168,30 +180,42 @@
             return;
           }
 
-          // One confirming poll (~400ms) after the page stops moving.
-          if (peek.hash === pendingHash) {
-            pendingStable += 1;
-          } else {
+          // Any real motion: cut audio immediately (don't finish the old page).
+          if (speech.speaking || speech.paused) speech.stop();
+
+          if (peek.hash !== pendingHash) {
             pendingHash = peek.hash;
             pendingStable = 1;
             setStatus("Page moving…");
+            // Cancel any in-flight catch-up OCR/speak from an earlier scroll.
+            catchupId += 1;
+            followBusy = false;
             return;
           }
 
-          if (pendingStable < 2) return;
+          pendingStable += 1;
+          // Resume only after the view stays still for ~2 peeks (~500ms).
+          if (pendingStable < 2) {
+            setStatus("Page moving…");
+            return;
+          }
 
           lastContentHash = peek.hash;
           pendingHash = null;
           pendingStable = 0;
 
-          setStatus("Page changed — catching up…");
+          const myCatchup = ++catchupId;
+          setStatus("Page settled — reading…");
           followBusy = true;
           try {
-            // Stop audio immediately so catch-up feels snappy while OCR runs.
-            if (speech.speaking || speech.paused) speech.stop();
-
             const next = await window.readToMe.readWindowById(windowId);
-            if (generation !== followGeneration || !followActive) return;
+            if (
+              myCatchup !== catchupId ||
+              generation !== followGeneration ||
+              !followActive
+            ) {
+              return;
+            }
 
             if (!textsDifferEnough(currentText, next.text)) {
               if (speech.speaking || speech.paused) setStatus("Speaking…");
@@ -211,21 +235,21 @@
               await speakTextStreaming(next.text, {
                 statusPrefix: "Speaking new page…",
               });
-              if (followActive) setStatus("Following the page — scroll anytime");
-              else setStatus("");
+              if (myCatchup !== catchupId || !followActive) return;
+              setStatus("Following the page — scroll anytime");
             } finally {
               reading = false;
               readBtn.disabled = false;
             }
           } finally {
-            followBusy = false;
+            if (myCatchup === catchupId) followBusy = false;
           }
         } catch (error) {
           // Keep following; one failed peek shouldn't kill the session.
           console.warn("Follow-page check failed:", error?.message || error);
         }
       })();
-    }, 400);
+    }, 250);
   }
 
 
@@ -314,13 +338,20 @@
           : "";
       setStatus(`Starting voice${cols}…`);
 
-      // Stream speech: first sentences play while later ones synthesize.
+      const windowId = result.id || selected.id;
+      // Start voice first; arm follow after a beat so the baseline hash
+      // isn't taken while Preview is still settling from the Read click.
       const speakPromise = speakTextStreaming(result.text);
-      // Follow scrolls on this window while speaking.
-      startFollow(result.id || selected.id, result.text);
+      window.setTimeout(() => {
+        if (!speech.stopped) startFollow(windowId, result.text);
+      }, 500);
       await speakPromise;
-      if (followActive) setStatus("Following the page — scroll anytime");
-      else setStatus("");
+      // If scroll-follow already stopped us mid-page, leave its status alone.
+      if (followActive && !speech.stopped) {
+        setStatus("Following the page — scroll anytime");
+      } else if (!followActive) {
+        setStatus("");
+      }
     } catch (error) {
       stopFollow();
       setStatus(error?.message || "Could not read that window");
