@@ -49,6 +49,13 @@ Whenever there’s a new fix, run this **one** line:
 
 That fetches the latest code, installs anything new, and starts the pill.
 
+To run the column/focus-fix branch instead:
+
+```bash
+chmod +x ~/Main-github/update-and-run-focus.sh
+~/Main-github/update-and-run-focus.sh
+```
+
 ## Just run (no update)
 
 ```bash
