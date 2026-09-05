@@ -52,9 +52,16 @@ That fetches the latest code, installs anything new, and starts the pill.
 To run the column/focus-fix branch instead:
 
 ```bash
-chmod +x ~/Main-github/update-and-run-focus.sh
-~/Main-github/update-and-run-focus.sh
+cd ~/Main-github
+git fetch origin
+git checkout cursor/fix-columns-and-focus-b940
+git pull --ff-only
+bash ./update-and-run.sh
 ```
+
+If `update-and-run-focus.sh` printed `unbound variable` on line 17, that copy never fetched this fix. Do not run it again. Use the commands above (plain `git`, then `bash ./update-and-run.sh`). After that pull, `bash ./update-and-run-focus.sh` is safe too.
+
+Mac Terminal is zsh. Run the launch scripts with `bash ./update-and-run.sh` so `$BRANCH` cannot be misread.
 
 ## Just run (no update)
 

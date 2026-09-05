@@ -1,17 +1,24 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Fetch this clone's current branch, install desktop deps, start the pill.
+# Usage:
+#   bash ~/Main-github/update-and-run.sh
+
+if [ -z "${BASH_VERSION-}" ]; then
+  exec /usr/bin/env bash "$0" "$@"
+fi
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_DIR="$SCRIPT_DIR"
-DESKTOP_DIR="$REPO_DIR/desktop"
+REPO_DIR="${SCRIPT_DIR}"
+DESKTOP_DIR="${REPO_DIR}/desktop"
 
-if [[ ! -d "$DESKTOP_DIR" ]]; then
+if [[ ! -d "${DESKTOP_DIR}" ]]; then
   echo "Couldn't find desktop/ next to this script."
-  echo "Expected: $DESKTOP_DIR"
+  echo "Expected: ${DESKTOP_DIR}"
   exit 1
 fi
 
-cd "$REPO_DIR"
+cd "${REPO_DIR}"
 BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 if [[ -z "${BRANCH}" || "${BRANCH}" == "HEAD" ]]; then
   BRANCH="detached"
@@ -40,7 +47,7 @@ else
 fi
 
 echo "-> Installing dependencies..."
-cd "$DESKTOP_DIR"
+cd "${DESKTOP_DIR}"
 npm install
 
 echo "-> Checking API names (preload / main / renderer must match)..."

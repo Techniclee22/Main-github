@@ -6,7 +6,7 @@
   "main": "main.cjs",
   "scripts": {
     "check-api": "node scripts/check-api-contract.cjs",
-    "test": "node --test scripts/ocr-layout.test.cjs scripts/tts.test.cjs scripts/check-api-contract.test.cjs scripts/window-pick.test.cjs scripts/follow-peek.test.cjs scripts/ocr-image.test.cjs",
+    "test": "node --test scripts/ocr-layout.test.cjs scripts/tts.test.cjs scripts/check-api-contract.test.cjs scripts/window-pick.test.cjs scripts/follow-peek.test.cjs scripts/ocr-image.test.cjs scripts/launch-scripts.test.cjs",
     "check": "node scripts/check-api-contract.cjs && npm test",
     "prestart": "npm run check-api",
     "start": "electron .",

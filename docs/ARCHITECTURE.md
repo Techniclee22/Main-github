@@ -102,6 +102,8 @@ The last Mac report was speech stopping after a few words. The tempfile fix is t
 
 `update-and-run.sh` fast-forwards whatever branch the clone is on. It does not pin a Cursor feature branch and it does not `reset --hard`. If `git pull --ff-only` fails (local edits, or `npm install` rewriting `desktop/package-lock.json`), the script prints stash / reset / checkout-main recovery instead of a raw git error.
 
+Launch scripts must re-exec under bash and quote `${BRANCH}`. Mac Terminal is zsh; `set -u` plus `$BRANCH…` looks up a different parameter and dies before `git fetch`.
+
 CI pins Node 22 (`.nvmrc`). Node 20 reached end-of-life on 2026-04-30.
 
 The next expensive change is a reading session in main that owns target, `say`, and follow. Do not add another renderer flag instead.
