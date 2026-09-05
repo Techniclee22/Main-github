@@ -35,11 +35,15 @@ describe("launch scripts", () => {
       assert.equal(UNQUOTED_THEN_ELLIPSIS.test(code), false);
     });
 
-    it(`${rel} quotes BRANCH and re-execs under bash`, () => {
+    it(`${rel} re-execs under bash`, () => {
       const src = fs.readFileSync(path.join(repoRoot, rel), "utf8");
       assert.match(src, /BASH_VERSION/);
-      if (rel !== "run.sh") {
+      if (rel === "update-and-run.sh") {
         assert.match(src, /\$\{BRANCH\}/);
+      }
+      if (rel === "update-and-run-focus.sh") {
+        assert.match(src, /update-and-run\.sh/);
+        assert.doesNotMatch(src, /fix-columns-and-focus/);
       }
     });
   }

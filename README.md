@@ -20,21 +20,18 @@ This is **not** a website you paste text into. It sits on top of whatever you al
 cd ~
 git clone https://github.com/Techniclee22/Main-github.git
 cd Main-github
-git checkout cursor/read-to-me-app-bbd6
 chmod +x update-and-run.sh run.sh
-./update-and-run.sh
+bash ./update-and-run.sh
 ```
 
-`main` does not contain the app yet. Skip that checkout once the pill lives on `main`.
-
-If you already cloned this repo onto `cursor/read-to-me-app-bbd6`, stay there until the pill is on `main`. After that branch is deleted, switch:
+If this clone is still on an old Cursor branch (`cursor/read-to-me-app-bbd6` or `cursor/fix-columns-and-focus-b940`), switch to `main`:
 
 ```bash
 cd ~/Main-github
 git fetch origin
 git checkout main
-git pull
-./update-and-run.sh
+git pull --ff-only
+bash ./update-and-run.sh
 ```
 
 After that, you almost never need the long command list again.
@@ -44,24 +41,12 @@ After that, you almost never need the long command list again.
 Whenever there’s a new fix, run this **one** line:
 
 ```bash
-~/Main-github/update-and-run.sh
+bash ~/Main-github/update-and-run.sh
 ```
 
 That fetches the latest code, installs anything new, and starts the pill.
 
-To run the column/focus-fix branch instead:
-
-```bash
-cd ~/Main-github
-git fetch origin
-git checkout cursor/fix-columns-and-focus-b940
-git pull --ff-only
-bash ./update-and-run.sh
-```
-
-If `update-and-run-focus.sh` printed `unbound variable` on line 17, that copy never fetched this fix. Do not run it again. Use the commands above (plain `git`, then `bash ./update-and-run.sh`). After that pull, `bash ./update-and-run-focus.sh` is safe too.
-
-Mac Terminal is zsh. Run the launch scripts with `bash ./update-and-run.sh` so `$BRANCH` cannot be misread.
+Mac Terminal is zsh. Prefer `bash ./update-and-run.sh` so launch scripts cannot misread `$BRANCH`. `update-and-run-focus.sh` is the same command (kept for old Terminal history).
 
 ## Just run (no update)
 
@@ -149,7 +134,7 @@ That verifies IPC names and the OCR/TTS unit tests. GitHub Actions runs the same
 | Voice didn’t change after Spoken Content setting | Fully quit the app, run `say "test"` in Terminal, then `~/Main-github/update-and-run.sh` |
 | Reading pauses every line | Run `~/Main-github/update-and-run.sh` to get the latest build |
 | Voice takes a long time to start | Fully quit, then `~/Main-github/update-and-run.sh`. Live `say` should start when OCR finishes. |
-| Speech stops after a few words | Click Stop, then Read. This was the last Mac bug report and has not been retested here. |
+| Speech stops after a few words | Fully quit, switch to `main`, `git pull --ff-only`, then `bash ./update-and-run.sh`. Click Stop, then Read. |
 | Scroll doesn’t change what is read | Stay on the same window. After scrolling, wait a moment. Click Stop then Read if needed. The pill must not be stealing focus from Preview. |
 | `npm` not found | Install Node.js 22 from nodejs.org, then open a **new** Terminal |
 | Update script dies on `git pull` | The clone has local edits. The script prints stash / reset / checkout-main recovery. It does not wipe your files. |

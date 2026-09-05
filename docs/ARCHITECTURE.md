@@ -98,9 +98,9 @@ Dark captures (Terminal) invert before OCR. Peek flicker on a dark UI is not a p
 
 A previous `say` close handler used to unlink `liveSayTempFile`, which could be the next sentence's file. Cleanup now unlinks only the file that spawn owned.
 
-The last Mac report was speech stopping after a few words. The tempfile fix is the likely root cause. It has not been retested on a Mac.
+Mac retest locked in two-column left-then-right reading and PDF ↔ Terminal voice switches. The follow timer must not await a full `say` loop.
 
-`update-and-run.sh` fast-forwards whatever branch the clone is on. It does not pin a Cursor feature branch and it does not `reset --hard`. If `git pull --ff-only` fails (local edits, or `npm install` rewriting `desktop/package-lock.json`), the script prints stash / reset / checkout-main recovery instead of a raw git error.
+`update-and-run.sh` fast-forwards whatever branch the clone is on. It does not pin a Cursor feature branch and it does not `reset --hard`. If `git pull --ff-only` fails (local edits, or `npm install` rewriting `desktop/package-lock.json`), the script prints stash / reset / checkout-main recovery instead of a raw git error. `update-and-run-focus.sh` is an alias for that script.
 
 Launch scripts must re-exec under bash and quote `${BRANCH}`. Mac Terminal is zsh; `set -u` plus `$BRANCH…` looks up a different parameter and dies before `git fetch`.
 

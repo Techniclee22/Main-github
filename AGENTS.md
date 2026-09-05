@@ -43,7 +43,7 @@ Do not add a test that needs macOS `say`, Screen Recording, or a live Electron w
 
 - Rename `speakLive`, IPC channels, or pill DOM ids in one file only.
 - Treat `src/` as the app.
-- Point `update-and-run.sh` at a hard-coded feature branch. It fast-forwards the clone's current upstream. A dirty clone must print recovery steps, not `reset --hard` by default.
+- Point `update-and-run.sh` at a hard-coded feature branch. It fast-forwards the clone's current upstream. A dirty clone must print recovery steps, not `reset --hard` by default. `update-and-run-focus.sh` must stay an alias, not a second pin.
 - Put `$BRANCH` next to a Unicode ellipsis in a launch script. Mac Terminal is zsh; `set -u` then treats `BRANCH…` as unset. Quote `${BRANCH}` and keep messages in ASCII.
 - Describe a follow-along side panel or `speechSynthesis` as the desktop path. The desktop path is live `say` plus a reading-band overlay.
 - Start a second speak loop without bumping `speakSession`. `stopFollow()` must not bump it.
