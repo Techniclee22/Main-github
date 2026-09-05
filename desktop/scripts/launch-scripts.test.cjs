@@ -11,6 +11,7 @@ const launchScripts = [
   "update-and-run.sh",
   "update-and-run-focus.sh",
   "run.sh",
+  "switch-to-main.sh",
 ];
 
 describe("launch scripts", () => {
@@ -44,6 +45,10 @@ describe("launch scripts", () => {
       if (rel === "update-and-run-focus.sh") {
         assert.match(src, /update-and-run\.sh/);
         assert.doesNotMatch(src, /fix-columns-and-focus/);
+      }
+      if (rel === "switch-to-main.sh") {
+        assert.match(src, /package-lock\.json/);
+        assert.match(src, /checkout main/);
       }
     });
   }

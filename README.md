@@ -24,15 +24,18 @@ chmod +x update-and-run.sh run.sh
 bash ./update-and-run.sh
 ```
 
-If this clone is still on an old Cursor branch (`cursor/read-to-me-app-bbd6` or `cursor/fix-columns-and-focus-b940`), switch to `main`:
+If this clone is still on an old Cursor branch (`cursor/read-to-me-app-bbd6` or `cursor/fix-columns-and-focus-b940`), switch to `main`. `npm install` often dirties `desktop/package-lock.json`; throw that away first or `git checkout main` will abort:
 
 ```bash
 cd ~/Main-github
+git checkout HEAD -- desktop/package-lock.json
 git fetch origin
 git checkout main
 git pull --ff-only
 bash ./update-and-run.sh
 ```
+
+After that pull, `bash ./switch-to-main.sh` does the same steps next time.
 
 After that, you almost never need the long command list again.
 
@@ -137,7 +140,8 @@ That verifies IPC names and the OCR/TTS unit tests. GitHub Actions runs the same
 | Speech stops after a few words | Fully quit, switch to `main`, `git pull --ff-only`, then `bash ./update-and-run.sh`. Click Stop, then Read. |
 | Scroll doesn’t change what is read | Stay on the same window. After scrolling, wait a moment. Click Stop then Read if needed. The pill must not be stealing focus from Preview. |
 | `npm` not found | Install Node.js 22 from nodejs.org, then open a **new** Terminal |
-| Update script dies on `git pull` | The clone has local edits. The script prints stash / reset / checkout-main recovery. It does not wipe your files. |
+| `git checkout main` aborted (package-lock.json) | `npm install` dirtied the lockfile. Run `git checkout HEAD -- desktop/package-lock.json`, then `git checkout main`. |
+| Update script dies on `git pull` | The clone has local edits. The script prints stash / reset / switch-to-main recovery. It does not wipe your files. |
 
 ## Architecture
 
