@@ -18,7 +18,7 @@ Each speed-up or follow fix rewrote several of those files. Without a frozen voc
 1. **One contract file:** [`api-contract.json`](./api-contract.json) is the source of truth.
 2. **Rename in one commit across every consumer** — never “fix names” in a single file.
 3. **Prefer boring stable names.** Do not invent synonyms (`speakLive` / `speakNow` / `liveSay`).
-4. **Engine strings are part of the contract** (e.g. `"macos-say-live"`).
+4. **Engine strings are part of the contract** (`"macos-say-live"`, `"kokoro-live"`). `lib/tts.cjs` and `lib/kokoro-live.cjs` name them. `speech.js` reports `result.engine` and the guard rejects a live-engine literal there.
 5. **DOM ids are part of the contract** (`pickBtn`, `targetLabel`, …).
 
 ## Automated guard

@@ -2,14 +2,14 @@
 
 ## What this is
 
-Read to Me is a Mac desktop companion. A small always-on-top pill sits over Preview, a browser, or any other window. Tap Read. The app captures that window, rebuilds the page text with OCR, and speaks it through live macOS `say`.
+Read to Me is a Mac desktop companion. A small always-on-top pill sits over Preview, a browser, or any other window. Tap Read. The app captures that window, rebuilds the page text with OCR, and speaks it with the local Kokoro voice when its model is ready, otherwise through live macOS `say`.
 
 It is not a website you paste into. The Next.js tree under `src/` is an earlier experiment and is frozen.
 
 ## Core loop
 
 ```
-frontmost window → PNG capture → Tesseract words → column reflow → live say
+frontmost window → PNG capture → Tesseract words → column reflow → Kokoro WAV + afplay, or live say
 ```
 
 While speech is running, a dim reading band overlays the target window. Scroll-follow peeks at the page. After the view settles, it OCRs again and continues from the newly visible text.
@@ -18,13 +18,15 @@ While speech is running, a dim reading band overlays the target window. Scroll-f
 
 **Pill renderer.** `desktop/renderer/pill.js` owns Read, Pause, Resume, Stop, the window picker, and scroll-follow timers. It calls `window.readToMe.*` and `ReadToMeSpeech`.
 
-**Speech session.** `desktop/renderer/speech.js` arms one speak loop at a time. `pill.js` splits the page into sentences and calls `speakLive` once per sentence. The WAV helper and cloud neural path have no Read call site. If live `say` fails, the fallback is Chromium `speechSynthesis`.
+**Speech session.** `desktop/renderer/speech.js` arms one speak loop at a time. `pill.js` splits the page into sentences and calls `speakLive` once per sentence. The WAV helper and cloud neural path have no Read call site. `speech.js` reports whichever engine `speakLive` returns and never names one itself. If `speakLive` throws because no engine could speak, the fallback is Chromium `speechSynthesis`.
 
 **Main process.** `desktop/main.cjs` lists windows, picks the one that matches the frontmost app's window title, captures a PNG, runs Tesseract, shows the highlight overlay, and scrolls the target with AppleScript.
 
 **OCR layout.** `desktop/lib/ocr-layout.cjs` turns word boxes into speech text. Two-column pages read left column top to bottom, then right. Curly quotes become ASCII so `say` does not turn "don't" into "don t".
 
-**TTS.** `desktop/lib/tts.cjs` starts `say -r 185 -f <tempfile>` without `-v` on macOS, so Spoken Content supplies the voice. Cloud neural TTS is implemented on `synthesize-speech` and is not on the Read path.
+**TTS.** `desktop/lib/tts.cjs` holds one live utterance at a time. `speakLive` asks `desktop/lib/kokoro-live.cjs` for the engine state and picks synchronously: `ready` on macOS means Kokoro, anything else means `say`, so a Read never waits on a model load. On the Kokoro path it cuts the sentence into pieces with `chunkText`, synthesizes each to a 16-bit PCM WAV under the temp dir, plays it with `afplay`, and synthesizes the next piece while the current one plays. On the `say` path it starts `say -r 185 -f <tempfile>` without `-v`, so Spoken Content supplies the voice. A Kokoro failure mid-sentence re-speaks the rest of that same sentence with `say`; a dead worker or a missing `afplay` marks Kokoro `unavailable` until the next launch. `speakLive` throws only when neither engine could speak.
+
+`desktop/lib/kokoro-live.cjs` supervises the worker and owns its state (`cold`, `warming`, `ready`, `unavailable`). `desktop/lib/kokoro-worker.cjs` is a plain `node` child that talks JSON lines over stdio and is the only file that requires `kokoro-js`, so the app and its tests load on Linux CI without the package. It runs on `node` rather than Electron because ONNX Runtime's native binding is built for Node's ABI. `main.cjs` calls `warmLiveVoice()` at `whenReady`, and every `speakLive` calls it again; both are no-ops unless the engine is still `cold`. Cloud neural TTS is implemented on `synthesize-speech` and is not on the Read path.
 
 **Name contract.** `desktop/api-contract.json` is the vocabulary for IPC methods, TTS exports, DOM ids, and engine strings. `desktop/scripts/check-api-contract.cjs` fails the process if a layer drifts.
 
@@ -34,8 +36,8 @@ While speech is running, a dim reading band overlays the target window. Scroll-f
 2. `pill.js` calls `readActiveWindow` or `readWindowById`.
 3. `main.cjs` captures the window, prepares the image, and OCRs it.
 4. `textFromOcrPage` rebuilds reading order and boxed words.
-5. `pill.js` splits the prose into sentences. Each sentence is one `speakLive` and one `say` process. Pause is a no-op in the gap between sentences.
-6. Follow starts. Peek captures compare luminance. A large still shift triggers a new OCR. Stop clears follow and kills `say`.
+5. `pill.js` splits the prose into sentences. Each sentence is one `speakLive` and one player child at a time: an `afplay` per Kokoro piece, or a single `say`. Pause latches even while Kokoro is still synthesizing, so the next piece waits for Resume. Pause is a no-op in the gap between sentences.
+6. Follow starts. Peek captures compare luminance. A large still shift triggers a new OCR. Stop clears follow and kills the current `afplay` or `say`.
 
 ```mermaid
 sequenceDiagram
@@ -43,7 +45,7 @@ sequenceDiagram
   participant Bridge as preload.cjs
   participant Main as main.cjs
   participant OCR as ocr-layout.cjs
-  participant Say as macOS say
+  participant Player as afplay or macOS say
 
   Pill->>Bridge: readActiveWindow()
   Bridge->>Main: read-active-window
@@ -54,7 +56,7 @@ sequenceDiagram
   loop each sentence
     Pill->>Bridge: speakLive(sentence)
     Bridge->>Main: speak-live
-    Main->>Say: spawn say -f tempfile
+    Main->>Player: spawn afplay piece.wav, or say -f tempfile
     Pill->>Bridge: highlightReading({ sourceId, fraction })
   end
 ```
@@ -66,7 +68,9 @@ sequenceDiagram
 | `desktop/` | The product |
 | `desktop/main.cjs` | Capture, OCR worker, windows, highlight, scroll |
 | `desktop/lib/ocr-layout.cjs` | Reading order (Linux-testable) |
-| `desktop/lib/tts.cjs` | Live `say` and fallbacks (reflow/chunk Linux-testable) |
+| `desktop/lib/tts.cjs` | Live utterance seat: Kokoro pieces through `afplay`, `say` fallback (Linux-testable with fakes) |
+| `desktop/lib/kokoro-live.cjs` | Kokoro worker supervisor and engine state (Linux-testable with a fake spawn) |
+| `desktop/lib/kokoro-worker.cjs` | Plain `node` child; the only file that requires `kokoro-js` |
 | `desktop/renderer/pill.js` | Follow state and playback UI |
 | `desktop/api-contract.json` | Frozen names |
 | `src/` | Frozen web experiment |
@@ -78,7 +82,9 @@ Identifier drift has already broken speech. Change names in the contract and eve
 
 `app.on("window-all-closed")` quits only off Mac. The app still starts on Linux. Unit tests never load Electron.
 
-`desktop/renderer/speech.js` still contains `speechSynthesis`. `pill.js` calls `speech.speakLive` first. If live `say` fails on Mac, `synthesizeSpeechChunk` returns empty `parts`, so the fallback is browser TTS, not neural and not a WAV file.
+`desktop/renderer/speech.js` still contains `speechSynthesis`. `pill.js` calls `speech.speakLive` first. If `speakLive` throws on Mac because neither Kokoro nor `say` could speak, `synthesizeSpeechChunk` returns empty `parts`, so the fallback is browser TTS, not neural and not a WAV file.
+
+Kokoro `unavailable` is sticky for the app session. A worker crash, a synth timeout, a missing `kokoro-js`, or a missing `afplay` all land there, and `say` speaks until the next launch. `READ_TO_ME_FORCE_SAY` pins `say` for a session; `READ_TO_ME_NODE` picks the `node` binary the worker runs on.
 
 Highlight and Page Down ignore the Electron `sourceId` the pill passes. They use the frontmost external app from AppleScript. Capture uses `source.id`. Two Preview windows can OCR one frame and paint the band on the other.
 

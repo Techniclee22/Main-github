@@ -29,6 +29,7 @@
     "stopLiveSay",
     "pauseLiveSay",
     "resumeLiveSay",
+    "warmLiveVoice",
     "pickSayVoice",
     "readSystemVoiceLabel",
     "reflowForSpeech",
@@ -41,7 +42,8 @@
     "speakLive",
     "stopLiveSay",
     "pauseLiveSay",
-    "resumeLiveSay"
+    "resumeLiveSay",
+    "warmLiveVoice"
   ],
   "speechPublicMethods": ["arm", "speakLive", "speakStream", "pause", "resume", "stop"],
   "speechCreateCallbacks": ["onState", "onBoundary", "onVoiceInfo"],
@@ -61,6 +63,7 @@
   ],
   "engines": {
     "liveMac": "macos-say-live",
+    "liveKokoro": "kokoro-live",
     "browser": "browser",
     "neural": "neural"
   },

@@ -23,6 +23,7 @@ const {
   stopLiveSay,
   pauseLiveSay,
   resumeLiveSay,
+  warmLiveVoice,
 } = require("./lib/tts.cjs");
 
 const execFileAsync = promisify(execFile);
@@ -676,10 +677,10 @@ async function readWindowSource(source, { softEmpty = false } = {}) {
 app.whenReady().then(() => {
   createPillWindow();
   startFocusPolling();
-  // Warm OCR (and macOS speech) so the first Read isn't paying cold-start.
   void getOcrWorker().catch((error) => {
     console.warn("OCR warm-up failed:", error?.message || error);
   });
+  warmLiveVoice();
   if (process.platform === "darwin") {
     void execFileAsync("say", ["-r", "200", " "]).catch(() => {});
   }

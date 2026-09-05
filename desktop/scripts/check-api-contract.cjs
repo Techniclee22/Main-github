@@ -1,20 +1,8 @@
 #!/usr/bin/env node
-/**
- * Fails if preload / main / renderer / tts drift away from api-contract.json.
- *
- *   cd desktop && npm run check-api
- *
- * Rule: never rename a bridge symbol in only one file. Update the contract
- * and every consumer in the same change.
- */
 const fs = require("fs");
 const path = require("path");
 
 const root = path.join(__dirname, "..");
-
-function read(rel) {
-  return fs.readFileSync(path.join(root, rel), "utf8");
-}
 
 function assertIncludes(errors, label, haystack, needle) {
   if (!haystack.includes(needle)) {
@@ -155,14 +143,18 @@ function missingReadResultKeys(sourceSrc, keys) {
   return missing;
 }
 
-function collectContractErrors() {
-  const contract = JSON.parse(
-    fs.readFileSync(path.join(root, "api-contract.json"), "utf8"),
-  );
+/**
+ * @param {Record<string, string>} [overrides] source text by repo-relative path
+ */
+function collectContractErrors(overrides = {}) {
+  const read = (rel) => overrides[rel] ?? fs.readFileSync(path.join(root, rel), "utf8");
+  const contract = JSON.parse(read("api-contract.json"));
   const errors = [];
   const preloadSrc = read("preload.cjs");
   const mainSrc = read("main.cjs");
   const ttsSrc = read("lib/tts.cjs");
+  const kokoroLiveSrc = read("lib/kokoro-live.cjs");
+  const kokoroWorkerSrc = read("lib/kokoro-worker.cjs");
   const pillSrc = read("renderer/pill.js");
   const speechSrc = read("renderer/speech.js");
   const htmlSrc = read("renderer/pill.html");
@@ -234,7 +226,33 @@ function collectContractErrors() {
   }
 
   assertIncludes(errors, "pill.js calls speech.speakLive", pillSrc, "speech.speakLive");
-  assertIncludes(errors, "tts.js live engine", ttsSrc, `"${contract.engines.liveMac}"`);
+  for (const [key, engine] of Object.entries(contract.engines)) {
+    assertIncludes(
+      errors,
+      `engine ${key} in tts.cjs or kokoro-live.cjs`,
+      `${ttsSrc}\n${kokoroLiveSrc}`,
+      `"${engine}"`,
+    );
+  }
+  for (const engine of [contract.engines.liveMac, contract.engines.liveKokoro]) {
+    if (new RegExp(`["']${engine}["']`).test(speechSrc)) {
+      errors.push(
+        `speech.js names engine "${engine}"; report result.engine from main instead`,
+      );
+    }
+  }
+  const kokoroRequire = /require(?:\.resolve)?\(\s*["']kokoro-js["']/;
+  for (const [label, src] of [
+    ["lib/tts.cjs", ttsSrc],
+    ["lib/kokoro-live.cjs", kokoroLiveSrc],
+  ]) {
+    if (kokoroRequire.test(src)) {
+      errors.push(`${label} requires kokoro-js; only lib/kokoro-worker.cjs may`);
+    }
+  }
+  if (!kokoroRequire.test(kokoroWorkerSrc)) {
+    errors.push("lib/kokoro-worker.cjs: missing the lazy require of kokoro-js");
+  }
 
   const readBody = extractNamedFunction(mainSrc, "readWindowSource");
   if (!readBody) {

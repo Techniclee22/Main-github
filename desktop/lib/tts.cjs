@@ -7,6 +7,10 @@ const { promisify } = require("util");
 const execFileAsync = promisify(execFile);
 
 const { normalizeQuotes } = require("./ocr-layout.cjs");
+const kokoroLive = require("./kokoro-live.cjs");
+
+const { ENGINE, KOKORO_VOICE_LABEL, selectVoice, forceSayRequested } =
+  kokoroLive;
 
 /**
  * Join OCR line wraps into continuous prose.
@@ -38,9 +42,6 @@ function reflowForSpeech(text) {
     .trim();
 }
 
-/**
- * Split at a natural boundary near maxChars.
- */
 function cutNear(rest, maxChars) {
   let cut = rest.lastIndexOf(". ", maxChars);
   if (cut < maxChars * 0.35) cut = rest.lastIndexOf("? ", maxChars);
@@ -102,9 +103,7 @@ async function readSystemVoiceLabel() {
         if (compact) return compact[1];
       }
       return raw;
-    } catch {
-      // try next
-    }
+    } catch {}
   }
 
   return null;
@@ -124,7 +123,15 @@ async function pickSayVoice() {
   return cachedVoiceChoice;
 }
 
-/* ─── Live macOS `say` (speakers immediately — no WAV wait) ─── */
+const liveDeps = {
+  spawn,
+  kill: (pid, signal) => process.kill(pid, signal),
+  platform: process.platform,
+  kokoro: kokoroLive,
+};
+
+const KOKORO_PIECE_CHARS = 300;
+const KOKORO_FIRST_PIECE_CHARS = 180;
 
 /** @type {import('child_process').ChildProcess | null} */
 let liveSayProc = null;
@@ -132,6 +139,9 @@ let liveSayPaused = false;
 let liveSayGeneration = 0;
 /** @type {string | null} */
 let liveSayTempFile = null;
+let liveSpeakActive = false;
+/** @type {(() => void) | null} */
+let liveSayWake = null;
 
 function unlinkOwnedSayFile(ownedFile) {
   if (!ownedFile) return;
@@ -139,61 +149,151 @@ function unlinkOwnedSayFile(ownedFile) {
   void fs.promises.unlink(ownedFile).catch(() => {});
 }
 
+function signalLiveProc(signal) {
+  if (!liveSayProc?.pid) return;
+  try {
+    liveDeps.kill(liveSayProc.pid, signal);
+  } catch {
+    // child already exited
+  }
+}
+
+function wakeLiveGate() {
+  const wake = liveSayWake;
+  liveSayWake = null;
+  if (wake) wake();
+}
+
 function stopLiveSay() {
   liveSayGeneration += 1;
   liveSayPaused = false;
+  liveSpeakActive = false;
   const proc = liveSayProc;
-  liveSayProc = null;
   const ownedFile = liveSayTempFile;
   liveSayTempFile = null;
   if (proc && !proc.killed) {
+    signalLiveProc("SIGCONT");
     try {
-      try {
-        if (proc.pid) process.kill(proc.pid, "SIGCONT");
-      } catch {
-        // ignore
-      }
       proc.kill("SIGKILL");
-    } catch {
-      // ignore
-    }
+    } catch {}
   }
+  liveSayProc = null;
   unlinkOwnedSayFile(ownedFile);
-}
-
-function pauseLiveSay() {
-  if (!liveSayProc || liveSayPaused || !liveSayProc.pid) return false;
-  try {
-    process.kill(liveSayProc.pid, "SIGSTOP");
-    liveSayPaused = true;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function resumeLiveSay() {
-  if (!liveSayProc || !liveSayPaused || !liveSayProc.pid) return false;
-  try {
-    process.kill(liveSayProc.pid, "SIGCONT");
-    liveSayPaused = false;
-    return true;
-  } catch {
-    return false;
-  }
+  wakeLiveGate();
 }
 
 /**
- * Speak through macOS `say` to the speakers immediately.
- * Audio begins as soon as `say` starts — no file render wait.
+ * Pause the live utterance. Also latches while no child exists yet (Kokoro
+ * is still synthesizing), so the next piece waits instead of starting.
  */
-async function speakLive(text) {
-  const clean = reflowForSpeech(text);
-  if (!clean) throw new Error("Nothing to speak.");
+function pauseLiveSay() {
+  if (!liveSpeakActive || liveSayPaused) return false;
+  liveSayPaused = true;
+  signalLiveProc("SIGSTOP");
+  return true;
+}
 
-  stopLiveSay();
-  const generation = liveSayGeneration;
+function resumeLiveSay() {
+  if (!liveSpeakActive || !liveSayPaused) return false;
+  liveSayPaused = false;
+  signalLiveProc("SIGCONT");
+  wakeLiveGate();
+  return true;
+}
 
+async function waitWhilePaused(generation) {
+  while (liveSayPaused && generation === liveSayGeneration) {
+    await new Promise((resolve) => {
+      liveSayWake = resolve;
+    });
+  }
+  return generation === liveSayGeneration;
+}
+
+async function playInSeat(command, args, ownedFile, generation) {
+  if (!(await waitWhilePaused(generation))) {
+    unlinkOwnedSayFile(ownedFile);
+    return { interrupted: true };
+  }
+  return new Promise((resolve, reject) => {
+    if (generation !== liveSayGeneration) {
+      unlinkOwnedSayFile(ownedFile);
+      resolve({ interrupted: true });
+      return;
+    }
+
+    const proc = liveDeps.spawn(command, args, { stdio: "ignore" });
+    liveSayProc = proc;
+    liveSayTempFile = ownedFile;
+    if (liveSayPaused) signalLiveProc("SIGSTOP");
+
+    proc.on("error", (error) => {
+      if (liveSayProc === proc) liveSayProc = null;
+      unlinkOwnedSayFile(ownedFile);
+      reject(error);
+    });
+
+    proc.on("close", () => {
+      if (liveSayProc === proc) liveSayProc = null;
+      unlinkOwnedSayFile(ownedFile);
+      resolve({ interrupted: generation !== liveSayGeneration });
+    });
+  });
+}
+
+function startSynth(text, isCurrent) {
+  const pending = liveDeps.kokoro.synthToWav(text, isCurrent);
+  pending.catch(() => {});
+  return pending;
+}
+
+function discardSynth(pending) {
+  if (!pending) return;
+  pending.then((wav) => unlinkOwnedSayFile(wav), () => {});
+}
+
+/**
+ * @returns {Promise<{ spoke: true, interrupted: boolean } | { spoke: false, rest: string }>}
+ */
+async function speakWithKokoro(clean, generation) {
+  const isCurrent = () => generation === liveSayGeneration;
+  const pieces = chunkText(clean, KOKORO_PIECE_CHARS, KOKORO_FIRST_PIECE_CHARS);
+  let pending = startSynth(pieces[0], isCurrent);
+
+  try {
+    for (let i = 0; i < pieces.length; i += 1) {
+      let wav;
+      try {
+        wav = await pending;
+      } catch (error) {
+        pending = null;
+        if (!isCurrent()) return { spoke: true, interrupted: true };
+        console.warn(`Kokoro synth failed (${error.code || error.message}); using say.`);
+        return { spoke: false, rest: pieces.slice(i).join(" ") };
+      }
+      pending = null;
+      if (!isCurrent()) {
+        unlinkOwnedSayFile(wav);
+        return { spoke: true, interrupted: true };
+      }
+      pending = i + 1 < pieces.length ? startSynth(pieces[i + 1], isCurrent) : null;
+
+      let played;
+      try {
+        played = await playInSeat("afplay", [wav], wav, generation);
+      } catch (error) {
+        liveDeps.kokoro.demoteKokoro(`afplay failed: ${error.message}`);
+        return { spoke: false, rest: pieces.slice(i).join(" ") };
+      }
+      if (played.interrupted) return { spoke: true, interrupted: true };
+    }
+    return { spoke: true, interrupted: false };
+  } finally {
+    discardSynth(pending);
+  }
+}
+
+async function speakWithSay(clean, generation) {
   const file = path.join(
     os.tmpdir(),
     `read-to-me-live-${process.pid}-${Date.now()}.txt`,
@@ -201,73 +301,76 @@ async function speakLive(text) {
   await fs.promises.writeFile(file, clean, "utf8");
   if (generation !== liveSayGeneration) {
     unlinkOwnedSayFile(file);
-    return {
-      ok: true,
-      interrupted: true,
-      engine: "macos-say-live",
-      voice: "System voice",
-      text: clean,
-      wordCount: clean.split(/\s+/).filter(Boolean).length,
-    };
+    return { interrupted: true };
   }
-  liveSayTempFile = file;
-
-  const voicePromise =
-    process.platform === "darwin"
-      ? pickSayVoice().catch(() => ({ voice: "System voice" }))
-      : pickSayVoice();
 
   const args = ["-r", "185", "-f", file];
-  if (process.platform !== "darwin") {
-    const voiceChoice = await voicePromise;
+  if (liveDeps.platform !== "darwin") {
+    const voiceChoice = await pickSayVoice();
     args.unshift("-v", voiceChoice.voice || "Samantha");
   }
 
-  await new Promise((resolve, reject) => {
-    if (generation !== liveSayGeneration) {
-      unlinkOwnedSayFile(file);
-      resolve({ ok: true, interrupted: true });
-      return;
-    }
+  return playInSeat("say", args, file, generation);
+}
 
-    const proc = spawn("say", args, { stdio: "ignore" });
-    liveSayProc = proc;
-    liveSayPaused = false;
-
-    proc.on("error", (error) => {
-      if (liveSayProc === proc) liveSayProc = null;
-      liveSayPaused = false;
-      unlinkOwnedSayFile(file);
-      reject(error);
-    });
-
-    proc.on("close", () => {
-      if (liveSayProc === proc) {
-        liveSayProc = null;
-        liveSayPaused = false;
-      }
-      unlinkOwnedSayFile(file);
-      resolve({
-        ok: true,
-        interrupted: generation !== liveSayGeneration,
-      });
-    });
-  });
-
-  const voiceChoice = await voicePromise;
-  return {
-    ok: true,
-    engine: "macos-say-live",
-    voice: voiceChoice.voice,
-    text: clean,
-    wordCount: clean.split(/\s+/).filter(Boolean).length,
-  };
+function warmLiveVoice() {
+  liveDeps.kokoro.warmLiveVoice();
 }
 
 /**
- * Plan speech without synthesizing.
- * On macOS the default engine is live `say` (instant start).
+ * Speak one sentence to the speakers now. Kokoro when its worker is ready,
+ * otherwise macOS `say`; a Kokoro failure demotes this same sentence to `say`.
+ * Throws only when no engine could speak.
  */
+async function speakLive(text) {
+  const clean = reflowForSpeech(text);
+  if (!clean) throw new Error("Nothing to speak.");
+
+  stopLiveSay();
+  const generation = liveSayGeneration;
+  liveSpeakActive = true;
+  const { kokoro, platform } = liveDeps;
+  kokoro.warmLiveVoice();
+
+  const wordCount = clean.split(/\s+/).filter(Boolean).length;
+  const spoken = (engine, voice, interrupted) => ({
+    ok: true,
+    ...(interrupted ? { interrupted: true } : {}),
+    engine,
+    voice,
+    text: clean,
+    wordCount,
+  });
+
+  try {
+    let rest = clean;
+    const engine = selectVoice(kokoro.kokoroStatus().state, {
+      forceSay: forceSayRequested(),
+      platform,
+    });
+    if (engine === ENGINE.KOKORO) {
+      const outcome = await speakWithKokoro(clean, generation);
+      if (outcome.spoke) {
+        return spoken(ENGINE.KOKORO, KOKORO_VOICE_LABEL, outcome.interrupted);
+      }
+      rest = outcome.rest;
+    }
+
+    const voicePromise =
+      platform === "darwin"
+        ? pickSayVoice().catch(() => ({ voice: "System voice" }))
+        : pickSayVoice();
+    const outcome = await speakWithSay(rest, generation);
+    const voiceChoice = await voicePromise;
+    return spoken(ENGINE.SAY, voiceChoice.voice, outcome.interrupted);
+  } finally {
+    if (generation === liveSayGeneration) {
+      liveSpeakActive = false;
+      liveSayWake = null;
+    }
+  }
+}
+
 async function planSpeech(text) {
   const clean = reflowForSpeech(text);
   if (!clean) throw new Error("Nothing to speak.");
@@ -283,9 +386,6 @@ async function planSpeech(text) {
   };
 }
 
-/**
- * Synthesize a single short chunk to WAV (fallback path only).
- */
 async function synthesizeOneSayChunk(chunk, label, dir, index) {
   const wavPath = path.join(dir, `part-${index}.wav`);
   const aiffPath = path.join(dir, `part-${index}.aiff`);
@@ -395,7 +495,6 @@ async function synthesizeWithGateway(text) {
   };
 }
 
-/** Full synthesize (neural / rare fallback). */
 async function synthesizeSpeech(text) {
   const clean = reflowForSpeech(text);
   if (!clean) throw new Error("Nothing to speak.");
@@ -430,4 +529,6 @@ module.exports = {
   stopLiveSay,
   pauseLiveSay,
   resumeLiveSay,
+  warmLiveVoice,
+  liveDeps,
 };

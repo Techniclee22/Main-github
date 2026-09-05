@@ -141,7 +141,6 @@
 
       function cleanupPlayback() {
         clearTick();
-        // Unblock any await sitting inside playAudioParts / speakWithBrowser.
         if (abortCurrentPart) {
           const abort = abortCurrentPart;
           abortCurrentPart = null;
@@ -297,7 +296,6 @@
               await speakWithBrowser(text);
             }
           } finally {
-            // Always return to idle — including after Stop — so Read works again.
             cleanupPlayback();
             finishIdle();
           }
@@ -317,8 +315,6 @@
           wordIndex = -1;
           speaking = true;
           paused = false;
-          // Mark busy immediately so Pause/Stop stay available while the
-          // first short chunk is still synthesizing.
           onState?.("speaking");
 
           try {
@@ -350,7 +346,8 @@
           stopped = false;
         },
         /**
-         * Speak immediately via macOS `say` (no WAV render wait).
+         * Speak immediately through main's live engine (no WAV render wait).
+         * Main reports which engine spoke; this layer never names one.
          */
         async speakLive(text) {
           if (stopped) return;
@@ -365,11 +362,8 @@
           try {
             if (stopped) return;
             const result = await window.readToMe.speakLive(text);
-            if (result?.voice) {
-              onVoiceInfo?.({
-                engine: "macos-say-live",
-                voice: result.voice,
-              });
+            if (result?.voice && typeof result.engine === "string" && result.engine) {
+              onVoiceInfo?.({ engine: result.engine, voice: result.voice });
             }
           } finally {
             liveMode = false;
