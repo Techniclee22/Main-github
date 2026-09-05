@@ -140,11 +140,19 @@
   function splitSentences(text) {
     const clean = String(text || "").replace(/\s+/g, " ").trim();
     if (!clean) return [];
-    // Simple split on sentence-ending punctuation.
-    const parts = clean
-      .split(/(?<=[.?!])\s+/)
-      .map((part) => part.trim())
-      .filter(Boolean);
+    // Avoid lookbehind — keep sentence splits compatible with older Chromium.
+    const parts = [];
+    let start = 0;
+    for (let i = 0; i < clean.length; i += 1) {
+      const ch = clean[i];
+      if ((ch === "." || ch === "?" || ch === "!") && (i + 1 === clean.length || clean[i + 1] === " ")) {
+        const piece = clean.slice(start, i + 1).trim();
+        if (piece) parts.push(piece);
+        start = i + 1;
+      }
+    }
+    const tail = clean.slice(start).trim();
+    if (tail) parts.push(tail);
     return parts.length ? parts : [clean];
   }
 
@@ -159,11 +167,17 @@
 
     try {
       // Sentence-by-sentence keeps the overlay band in sync (`say` has no word callbacks).
+      // Read/follow call speech.stop() first, which latches stopped=true — speakLive
+      // clears that latch, so only check stopped after the first utterance has begun.
       for (let i = 0; i < sentences.length; i += 1) {
-        if (speech.stopped) break;
+        if (i > 0 && speech.stopped) break;
         const fraction = i / total;
         if (sourceId) {
-          void window.readToMe.highlightReading({ sourceId, fraction });
+          try {
+            void window.readToMe.highlightReading({ sourceId, fraction });
+          } catch {
+            // Overlay is best-effort — never block speech if it fails.
+          }
         }
         setStatus(
           `${statusPrefix || "Speaking…"} (${i + 1}/${sentences.length})`,
