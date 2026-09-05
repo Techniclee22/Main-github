@@ -53,9 +53,6 @@ function cutNear(rest, maxChars) {
   return end;
 }
 
-/**
- * Chunking kept for file/neural fallbacks. Live `say` speaks the full page.
- */
 function chunkText(text, maxChars = 380, firstMaxChars = 220) {
   const clean = reflowForSpeech(text);
   if (!clean) return [];
@@ -280,7 +277,6 @@ async function planSpeech(text) {
   return {
     engine: live ? "macos-say-live" : "browser",
     voice: voiceChoice.voice,
-    // Live path speaks the full page in one shot.
     chunks: live ? [clean] : chunkText(clean),
     text: clean,
     wordCount: clean.split(/\s+/).filter(Boolean).length,

@@ -47,3 +47,4 @@ Do not add a test that needs macOS `say`, Screen Recording, or a live Electron w
 - Describe a follow-along side panel or `speechSynthesis` as the desktop path. The desktop path is live `say` plus a reading-band overlay.
 - Start a second speak loop without bumping `speakSession`. `stopFollow()` must not bump it.
 - Assume `highlightReading({ sourceId })` or `scrollTargetWindow` honor `sourceId`. They use the frontmost external app.
+- Add another renderer cancellation flag. The next session change belongs in main.

@@ -25,6 +25,8 @@ chmod +x update-and-run.sh run.sh
 ./update-and-run.sh
 ```
 
+`main` does not contain the app yet. Skip that checkout once the pill lives on `main`.
+
 After that, you almost never need the long command list again.
 
 ## Update & run (one command)

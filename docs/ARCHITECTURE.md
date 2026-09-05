@@ -18,13 +18,13 @@ While speech is running, a dim reading band overlays the target window. Scroll-f
 
 **Pill renderer.** `desktop/renderer/pill.js` owns Read, Pause, Resume, Stop, the window picker, and scroll-follow timers. It calls `window.readToMe.*` and `ReadToMeSpeech`.
 
-**Speech session.** `desktop/renderer/speech.js` arms one speak loop at a time. Live `say` is the default. File and neural chunk playback remain as fallbacks.
+**Speech session.** `desktop/renderer/speech.js` arms one speak loop at a time. `pill.js` splits the page into sentences and calls `speakLive` once per sentence. The WAV helper and cloud neural path have no Read call site. If live `say` fails, the fallback is Chromium `speechSynthesis`.
 
 **Main process.** `desktop/main.cjs` lists windows, scores the frontmost PDF-like target, captures a PNG, runs Tesseract, shows the highlight overlay, and scrolls the target with AppleScript.
 
 **OCR layout.** `desktop/lib/ocr-layout.cjs` turns word boxes into speech text. Two-column pages read left column top to bottom, then right. Curly quotes become ASCII so `say` does not turn "don't" into "don t".
 
-**TTS.** `desktop/lib/tts.cjs` starts `say -r 185 -f <tempfile>` without `-v` on macOS, so Spoken Content supplies the voice. Optional cloud neural TTS runs only when a gateway key is set.
+**TTS.** `desktop/lib/tts.cjs` starts `say -r 185 -f <tempfile>` without `-v` on macOS, so Spoken Content supplies the voice. Cloud neural TTS is implemented on `synthesize-speech` and is not on the Read path.
 
 **Name contract.** `desktop/api-contract.json` is the vocabulary for IPC methods, TTS exports, DOM ids, and engine strings. `desktop/scripts/check-api-contract.cjs` fails the process if a layer drifts.
 
@@ -33,8 +33,8 @@ While speech is running, a dim reading band overlays the target window. Scroll-f
 1. The user taps Read, or picks a window with the picker.
 2. `pill.js` calls `readActiveWindow` or `readWindowById`.
 3. `main.cjs` captures the window, prepares the image, and OCRs it.
-4. `textFromOcrPage` rebuilds reading order.
-5. `speech.speakLive` asks main to spawn `say`.
+4. `textFromOcrPage` rebuilds reading order and boxed words.
+5. `pill.js` splits the prose into sentences. Each sentence is one `speakLive` and one `say` process. Pause is a no-op in the gap between sentences.
 6. Follow starts. Peek captures compare luminance. A large still shift triggers a new OCR. Stop clears follow and kills `say`.
 
 ```mermaid
@@ -49,11 +49,14 @@ sequenceDiagram
   Bridge->>Main: read-active-window
   Main->>Main: capture PNG + Tesseract
   Main->>OCR: textFromOcrPage(words)
-  OCR-->>Main: prose + column count
-  Main-->>Pill: { text, sourceId }
-  Pill->>Bridge: speakLive(text)
-  Bridge->>Main: speak-live
-  Main->>Say: spawn say -f tempfile
+  OCR-->>Main: prose, columns, boxed words
+  Main-->>Pill: { text, id, words }
+  loop each sentence
+    Pill->>Bridge: speakLive(sentence)
+    Bridge->>Main: speak-live
+    Main->>Say: spawn say -f tempfile
+    Pill->>Bridge: highlightReading({ sourceId, fraction })
+  end
 ```
 
 ## Where things live
@@ -93,8 +96,8 @@ The last Mac report was speech stopping after a few words. The tempfile fix is t
 
 `update-and-run.sh` fast-forwards whatever branch the clone is on. It does not pin a Cursor feature branch.
 
-The web voice types in `src/lib/voice/types.ts` do not apply to the desktop path. Desktop live speech is `macos-say-live`.
+The next expensive change is a reading session in main that owns target, `say`, and follow. Do not add another renderer flag instead.
 
 ## Privacy
 
-The system-voice path keeps window frames on-device. If `AI_GATEWAY_API_KEY` or `OPENAI_API_KEY` is set, page text may go to cloud TTS.
+The system-voice path keeps window frames on-device. Read does not call cloud TTS. The unused `synthesize-speech` handler will send page text if `AI_GATEWAY_API_KEY` or `OPENAI_API_KEY` is set.

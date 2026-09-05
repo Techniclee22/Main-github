@@ -14,3 +14,6 @@ ts	phase	decision	why	evidence	result
 2026-09-05T02:48:36Z	ci	GitHub Actions check passed on c4b152b	PR 2 head, npm run check in desktop	run 33940092908	VERIFIED
 2026-09-05T02:52:43Z	critique	unlink only the say file this spawn owned; keep successor tempfile	previous close handler deleted liveSayTempFile after retarget, which matches speech stopping mid-page	desktop/lib/tts.cjs unlinkOwnedSayFile	code review, not Mac retest
 2026-09-05T02:52:43Z	critique	reject column split when the page center is busy; return word boxes on read	full-width prose was splitting; highlight cannot recover dropped boxes	ocr-layout.test.cjs full-width prose, readWindowSource words	VERIFIED
+2026-09-05T02:53:29Z	ci	GitHub Actions check passed on 83b89f0	latest foundation head	run success for 83b89f05174d72d92c3b0732d5b88d649fdeb973	VERIFIED
+2026-09-05T02:54:28Z	critique	skip moving ReadingSession into main on this PR	four critics agree the session is in the wrong process; the move rewrites pill.js and the contract together	how critic fable S1, already deferred S2/S3 follow-up	skip: needs Mac and a dedicated PR
+2026-09-05T02:54:28Z	docs	document per-sentence say and unreachable neural on the Read path	ARCHITECTURE still showed one speakLive for the whole page	docs/ARCHITECTURE.md sequence diagram	open
