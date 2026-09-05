@@ -29,15 +29,17 @@ const execFileAsync = promisify(execFile);
 /** Tiny thumbs — only used to identify which window to read. */
 const IDENTIFY_THUMB = { width: 160, height: 100 };
 /** Fallback getSources size when screencapture is unavailable. */
-const OCR_THUMB = { width: 900, height: 1200 };
+const OCR_THUMB = { width: 1400, height: 1800 };
 /** Tiny thumbs for scroll/change detection. */
-const PEEK_THUMB = { width: 96, height: 128 };
-/** Max width fed into Tesseract (smaller = much faster). */
-const OCR_MAX_WIDTH = 520;
-/** Only OCR the on-screen top of the window so speech can start sooner. */
-const OCR_TOP_FRACTION = 0.48;
+const PEEK_THUMB = { width: 64, height: 80 };
+/** Max width fed into Tesseract — keep high enough that letters stay sharp. */
+const OCR_MAX_WIDTH = 1100;
+/** OCR most of the visible page (was too aggressive and produced gibberish). */
+const OCR_TOP_FRACTION = 0.88;
 /** Max dimension after screencapture (Retina dumps are huge otherwise). */
-const CAPTURE_MAX_DIM = 720;
+const CAPTURE_MAX_DIM = 1600;
+/** White pad around OCR image — stops leptonica boxClip spam. */
+const OCR_BORDER_PX = 16;
 
 /** @type {BrowserWindow | null} */
 let pillWindow = null;
@@ -49,6 +51,33 @@ let selectedSourceId = null;
 let lastExternalFocus = null;
 /** @type {ReturnType<typeof setInterval> | null} */
 let focusPollTimer = null;
+
+/** Mute leptonica/tesseract spam that writes straight to stderr. */
+function installTessStderrFilter() {
+  if (global.__readToMeTessStderrFiltered) return;
+  global.__readToMeTessStderrFiltered = true;
+  const origWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = (chunk, encoding, cb) => {
+    const text =
+      typeof chunk === "string"
+        ? chunk
+        : Buffer.isBuffer(chunk)
+          ? chunk.toString("utf8")
+          : String(chunk);
+    if (
+      /Error in boxClipToRectangle|Error in pixScanForForeground|boxClipToRectangle|pixScanForForeground|Estimating resolution|box outside rectangle|invalid box|Error in box|Error in pix/i.test(
+        text,
+      )
+    ) {
+      if (typeof encoding === "function") encoding();
+      else if (typeof cb === "function") cb();
+      return true;
+    }
+    return origWrite(chunk, encoding, cb);
+  };
+}
+
+installTessStderrFilter();
 
 async function getOcrWorker() {
   if (!ocrWorker) {
@@ -64,6 +93,8 @@ async function getOcrWorker() {
       tessedit_do_invert: "0",
       textord_heavy_nr: "0",
       classify_enable_learning: "0",
+      // Avoid "Estimating resolution as 105" on screen captures.
+      user_defined_dpi: "220",
     });
   }
   return ocrWorker;
@@ -238,21 +269,22 @@ async function captureWindowPng(sourceId, fallbackSource) {
   if (process.platform === "darwin") {
     const cgId = nativeWindowId(sourceId);
     if (cgId) {
+      // PNG keeps text sharp for OCR (JPEG artifacts caused gibberish speech).
       const outPath = path.join(
         os.tmpdir(),
-        `read-to-me-${cgId}-${process.pid}-${Date.now()}.jpg`,
+        `read-to-me-${cgId}-${process.pid}-${Date.now()}.png`,
       );
       try {
         await execFileAsync(
           "screencapture",
-          ["-x", "-o", "-t", "jpg", "-l", String(cgId), outPath],
-          { timeout: 6000 },
+          ["-x", "-o", "-t", "png", "-l", String(cgId), outPath],
+          { timeout: 8000 },
         );
-        // Retina window dumps are multi‑MB; shrink on disk before Electron decodes.
+        // Retina dumps are huge; shrink on disk before Electron decodes.
         await execFileAsync(
           "sips",
           ["-Z", String(CAPTURE_MAX_DIM), outPath],
-          { timeout: 4000 },
+          { timeout: 5000 },
         ).catch(() => {});
         const buf = await fs.promises.readFile(outPath);
         void fs.promises.unlink(outPath).catch(() => {});
@@ -268,7 +300,6 @@ async function captureWindowPng(sourceId, fallbackSource) {
   }
 
   if (fallbackSource?.thumbnail && !fallbackSource.thumbnail.isEmpty()) {
-    // Identify thumbs are too small for OCR — fetch a larger one.
     const size = fallbackSource.thumbnail.getSize();
     if (size.width >= 800) return fallbackSource.thumbnail.toPNG();
   }
@@ -287,18 +318,37 @@ async function captureWindowPng(sourceId, fallbackSource) {
 }
 
 /**
- * Shrink / crop / re-encode the capture so Tesseract runs faster and avoids
- * "Box outside rectangle" / "Invalid box" noise from huge Retina PNGs.
+ * Pad an image with a white border (fixes leptonica boxClipToRectangle spam).
+ */
+function addWhiteBorder(image, pad) {
+  const { width, height } = image.getSize();
+  const outW = width + pad * 2;
+  const outH = height + pad * 2;
+  const src = image.toBitmap(); // BGRA
+  const out = Buffer.alloc(outW * outH * 4, 255);
+  for (let y = 0; y < height; y += 1) {
+    const srcOff = y * width * 4;
+    const dstOff = ((y + pad) * outW + pad) * 4;
+    src.copy(out, dstOff, srcOff, srcOff + width * 4);
+  }
+  return nativeImage.createFromBitmap(out, { width: outW, height: outH });
+}
+
+/**
+ * Prepare a sharp, opaque image for Tesseract.
+ * Prior version crushed to ~520px JPEG@72 → gibberish speech.
  */
 function prepareImageForOcr(imageBuffer) {
   let image = nativeImage.createFromBuffer(imageBuffer);
   let { width, height } = image.getSize();
   if (width < 16 || height < 16) {
-    throw new Error("Captured image was empty. Bring the window to the front and try again.");
+    throw new Error(
+      "Captured image was empty. Bring the window to the front and try again.",
+    );
   }
 
-  // Trim a couple of pixels — edge artifacts often produce invalid tess boxes.
-  const inset = 2;
+  // Mild inset only — keep as many pixels of text as possible.
+  const inset = 1;
   if (width > 40 && height > 40) {
     image = image.crop({
       x: inset,
@@ -310,41 +360,48 @@ function prepareImageForOcr(imageBuffer) {
   }
 
   if (width > OCR_MAX_WIDTH) {
-    image = image.resize({ width: OCR_MAX_WIDTH, quality: "good" });
+    image = image.resize({ width: OCR_MAX_WIDTH, quality: "best" });
     ({ width, height } = image.getSize());
   }
 
-  // Prefer the top of the window (what's on screen) so speech can start sooner.
-  const cropHeight = Math.max(64, Math.floor(height * OCR_TOP_FRACTION));
+  const cropHeight = Math.max(120, Math.floor(height * OCR_TOP_FRACTION));
   if (cropHeight < height) {
     image = image.crop({ x: 0, y: 0, width, height: cropHeight });
-    ({ width, height } = image.getSize());
   }
 
-  // Even dimensions reduce leptonica "box outside rectangle" edge cases.
-  const evenW = width - (width % 2);
-  const evenH = height - (height % 2);
-  if (evenW >= 16 && evenH >= 16 && (evenW !== width || evenH !== height)) {
-    image = image.crop({ x: 0, y: 0, width: evenW, height: evenH });
-  }
+  image = addWhiteBorder(image, OCR_BORDER_PX);
 
-  // JPEG has no alpha channel — fewer invalid-box warnings than raw PNG.
-  return image.toJPEG(72);
+  // Opaque PNG (no alpha) — better OCR than lossy JPEG.
+  return image.toPNG();
 }
 
 function isTessNoiseMessage(args) {
   const msg = args.map((a) => String(a ?? "")).join(" ");
-  return /box\s*outside\s*rectangle|invalid\s*box|boxcliptorectangle|pick.?scan|error in box/i.test(
+  return /box\s*outside\s*rectangle|invalid\s*box|boxcliptorectangle|pixscanforforeground|estimating resolution|error in box/i.test(
     msg,
   );
+}
+
+/** Flatten tesseract.js blocks → words when top-level words are missing. */
+function pageWithWords(data) {
+  if (data?.words?.length) return data;
+  const words = [];
+  for (const block of data?.blocks || []) {
+    for (const para of block.paragraphs || []) {
+      for (const line of para.lines || []) {
+        for (const word of line.words || []) words.push(word);
+      }
+    }
+  }
+  return { ...data, words };
 }
 
 async function ocrPng(imageBuffer) {
   const prepared = prepareImageForOcr(imageBuffer);
   const worker = await getOcrWorker();
-  // Tess / leptonica still print some C++ warnings; mute the known noisy ones.
   const prevWarn = console.warn;
   const prevError = console.error;
+  const prevLog = console.log;
   console.warn = (...args) => {
     if (isTessNoiseMessage(args)) return;
     prevWarn(...args);
@@ -353,20 +410,32 @@ async function ocrPng(imageBuffer) {
     if (isTessNoiseMessage(args)) return;
     prevError(...args);
   };
+  console.log = (...args) => {
+    if (isTessNoiseMessage(args)) return;
+    prevLog(...args);
+  };
   try {
-    const result = await worker.recognize(prepared);
-    return textFromOcrPage(result.data);
+    // debug:true redirects "Estimating resolution" into result.data.debug
+    // instead of the terminal. blocks:true supplies word boxes for columns.
+    const result = await worker.recognize(
+      prepared,
+      {},
+      { text: true, blocks: true, debug: true },
+    );
+    return textFromOcrPage(pageWithWords(result.data));
   } finally {
     console.warn = prevWarn;
     console.error = prevError;
+    console.log = prevLog;
   }
 }
 
-/** Stable-enough fingerprint for scroll detection (ignores Retina flicker). */
+/** Coarse fingerprint for scroll detection (ignores Retina flicker). */
 function peekContentHash(image) {
-  const tiny = image.resize({ width: 48, height: 64, quality: "good" });
-  return crypto.createHash("sha1").update(tiny.toJPEG(30)).digest("hex");
+  const tiny = image.resize({ width: 32, height: 40, quality: "good" });
+  return crypto.createHash("sha1").update(tiny.toJPEG(25)).digest("hex");
 }
+
 
 async function readWindowSource(source) {
   selectedSourceId = source.id;

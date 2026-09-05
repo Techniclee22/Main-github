@@ -151,7 +151,7 @@
     pendingStable = 0;
     // Ignore hash flicker while Preview settles after Read — prevents a
     // false "Page moving…" on the first press.
-    const armedAt = Date.now() + 1800;
+    const armedAt = Date.now() + 2500;
     let catchupId = 0;
 
     followTimer = setInterval(() => {
@@ -180,9 +180,6 @@
             return;
           }
 
-          // Any real motion: cut audio immediately (don't finish the old page).
-          if (speech.speaking || speech.paused) speech.stop();
-
           if (peek.hash !== pendingHash) {
             pendingHash = peek.hash;
             pendingStable = 1;
@@ -194,8 +191,12 @@
           }
 
           pendingStable += 1;
-          // Resume only after the view stays still for ~2 peeks (~500ms).
-          if (pendingStable < 2) {
+          // Cut audio once motion is confirmed (2 peeks), not on a one-frame flicker.
+          if (pendingStable === 2 && (speech.speaking || speech.paused)) {
+            speech.stop();
+          }
+          // Resume only after the view stays still a bit longer (~3 peeks / ~750ms).
+          if (pendingStable < 3) {
             setStatus("Page moving…");
             return;
           }
