@@ -22,7 +22,7 @@ While speech is running, a dim reading band overlays the target window. Scroll-f
 
 **Main process.** `desktop/main.cjs` lists windows, scores the frontmost PDF-like target, captures a PNG, runs Tesseract, shows the highlight overlay, and scrolls the target with AppleScript.
 
-**OCR layout.** `desktop/lib/ocr-layout.cjs` turns word boxes into speech text. Two-column pages read left column top to bottom, then right. Curly quotes become ASCII so `say` does not turn `don’t` into `don t`.
+**OCR layout.** `desktop/lib/ocr-layout.cjs` turns word boxes into speech text. Two-column pages read left column top to bottom, then right. Curly quotes become ASCII so `say` does not turn "don't" into "don t".
 
 **TTS.** `desktop/lib/tts.cjs` starts `say -r 185 -f <tempfile>` without `-v` on macOS, so Spoken Content supplies the voice. Optional cloud neural TTS runs only when a gateway key is set.
 
@@ -74,6 +74,8 @@ sequenceDiagram
 Identifier drift has already broken speech. Change names in the contract and every consumer together.
 
 `main.cjs` quits on non-Mac platforms. Unit tests never load Electron.
+
+`desktop/renderer/speech.js` still contains `speechSynthesis` as a fallback. `pill.js` calls `speech.speakLive` first. Do not document that fallback as the product path.
 
 Follow state in `pill.js` is a handful of timers and generation counters (`speakSession`, `followGeneration`, `followTargetId`). Those exist because an older loop kept talking after retarget. Do not start a second speak loop without bumping `speakSession`.
 
