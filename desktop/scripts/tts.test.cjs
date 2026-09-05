@@ -388,27 +388,63 @@ describe("prefetchLive", () => {
     });
   });
 
-  it("clears a next-sentence prefetch that starts before speakLive", async () => {
-    // Pill used to call prefetchLive(N+1) before speakLive(N). speakLive(N)
-    // clears any non-matching prefetch, so every sentence paid a cold synth.
+  it("keeps an early N+1 prefetch while cold-speaking N", async () => {
+    // Even if N+1 was warmed before speakLive(N), do not throw it away —
+    // destroying it forced every sentence to pay a cold synth gap.
     const players = fakePlayers();
     const kokoro = fakeKokoro("ready");
     await withLiveDeps({ spawn: players.spawn, kill: players.kill, kokoro }, async () => {
       assert.equal(prefetchLive("Second sentence.").ok, true);
       await waitFor(() => kokoro.synths.length === 1, "prefetch B");
+      const synthB = kokoro.synths[0];
       const spokenA = speakLive("First sentence.");
-      await waitFor(() => kokoro.synths.length === 2, "cold synth for A after clearing B");
-      kokoro.synths[1].resolve(tempWav("a"));
+      await waitFor(() => kokoro.synths.length === 2, "cold synth for A");
+      const synthA = kokoro.synths.find((s) => s.text === "First sentence.");
+      assert.ok(synthA, "A must start its own synth");
+      synthA.resolve(tempWav("a"));
       await waitFor(() => players.spawned.length === 1, "afplay A");
+      // Finish B's synth while A plays — the warm work speakLive(B) should reuse.
+      synthB.resolve(tempWav("b-kept"));
       players.spawned[0].finish();
       await spokenA;
 
       const spokenB = speakLive("Second sentence.");
-      await waitFor(() => kokoro.synths.length === 3, "B must synth again");
-      kokoro.synths[2].resolve(tempWav("b-again"));
-      await waitFor(() => players.spawned.length === 2, "afplay B");
+      await waitFor(() => players.spawned.length === 2, "afplay B from kept prefetch");
+      assert.equal(kokoro.synths.length, 2, "B reused the early prefetch");
       players.spawned[1].finish();
       await spokenB;
+    });
+  });
+
+  it("warms N+1 atomically via speakLive prefetchNext without a cross-IPC race", async () => {
+    const players = fakePlayers();
+    const kokoro = fakeKokoro("ready");
+    await withLiveDeps({ spawn: players.spawn, kill: players.kill, kokoro }, async () => {
+      const spokenA = speakLive("First sentence.", {
+        prefetchNext: "Second sentence.",
+      });
+      await waitFor(() => kokoro.synths.length === 2, "synth A and prefetch B together");
+      assert.equal(kokoro.synths[0].text, "First sentence.");
+      assert.equal(kokoro.synths[1].text, "Second sentence.");
+      kokoro.synths[0].resolve(tempWav("a"));
+      await waitFor(() => players.spawned.length === 1, "afplay A");
+      kokoro.synths[1].resolve(tempWav("b"));
+      players.spawned[0].finish();
+      await spokenA;
+
+      const spokenB = speakLive("Second sentence.", {
+        prefetchNext: "Third sentence.",
+      });
+      await waitFor(() => players.spawned.length === 2, "afplay B without a third synth for B");
+      assert.equal(
+        kokoro.synths.length,
+        3,
+        "B reused prefetch; only C is a new synth",
+      );
+      assert.equal(kokoro.synths[2].text, "Third sentence.");
+      players.spawned[1].finish();
+      kokoro.synths[2].resolve(tempWav("c"));
+      assert.equal((await spokenB).engine, ENGINE.KOKORO);
     });
   });
 

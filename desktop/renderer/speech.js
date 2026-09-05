@@ -347,8 +347,10 @@
         },
         /**
          * Speak immediately through main's live engine (no WAV render wait).
+         * Pass prefetchNext so main warms the following sentence in the same
+         * turn — a separate prefetch IPC can race and recreate synth gaps.
          */
-        async speakLive(text) {
+        async speakLive(text, options = {}) {
           if (stopped) return;
           liveMode = true;
           cleanupPlayback();
@@ -360,7 +362,7 @@
 
           try {
             if (stopped) return;
-            const result = await window.readToMe.speakLive(text);
+            const result = await window.readToMe.speakLive(text, options);
             if (result?.voice && typeof result.engine === "string" && result.engine) {
               onVoiceInfo?.({ engine: result.engine, voice: result.voice });
             }
@@ -374,8 +376,8 @@
           }
         },
         /**
-         * Warm the next sentence while the current one plays so Kokoro does
-         * not leave a synth-sized gap between sentences.
+         * Warm a sentence before speakLive (e.g. first line after pre-scan).
+         * For N+1 while N plays, prefer speakLive(N, { prefetchNext: N+1 }).
          */
         prefetchLive(text) {
           if (stopped) return;

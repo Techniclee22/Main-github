@@ -226,11 +226,16 @@ function collectContractErrors(overrides = {}) {
   }
 
   
-  // Prefetch of N+1 must not run before speakLive(N) starts — speakLive clears
-  // non-matching prefetch slots, which recreates a full synth gap between sentences.
+  // N+1 must warm inside speakLive via prefetchNext (same turn as claiming N).
+  // A separate prefetchLive(N+1) IPC can race and clear the warm slot → ~1–2s gaps.
+  if (!/prefetchNext\s*:/.test(pillSrc)) {
+    errors.push(
+      "pill.js must pass prefetchNext into speakLive so N+1 warms without a cross-IPC race",
+    );
+  }
   if (/prefetchLive\([\s\S]{0,120}?await\s+speech\.speakLive/.test(pillSrc)) {
     errors.push(
-      "pill.js must start speakLive(N) before prefetchLive(N+1); reverse order clears the prefetch",
+      "pill.js must not await speakLive after a prefetchLive that was meant for N+1; use prefetchNext",
     );
   }
 

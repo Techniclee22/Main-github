@@ -290,6 +290,12 @@
       for (let i = 0; i < utterances.length; i += 1) {
         if (!speechIsCurrent(session)) break;
         const fraction = i / total;
+        // Start speak (+ atomic N+1 warm) before highlight/status so Kokoro
+        // gets the next sentence as early as possible in the turn.
+        const speaking = speech.speakLive(utterances[i], {
+          prefetchNext:
+            i + 1 < utterances.length ? utterances[i + 1] : undefined,
+        });
         if (sourceId) {
           try {
             void window.readToMe.highlightReading({ sourceId, fraction });
@@ -300,14 +306,6 @@
         setStatus(
           `${statusPrefix || "Speaking…"} (${i + 1}/${utterances.length})`,
         );
-        // Start speakLive first so its sync preamble can clear a stale prefetch.
-        // Prefetch N+1 only after that, while N synthesizes/plays — otherwise
-        // speakLive(N) throws away the warm work for N+1 and leaves a synth gap.
-        // (Turn 0 was already prefetched above and is reused here.)
-        const speaking = speech.speakLive(utterances[i]);
-        if (i + 1 < utterances.length && speechIsCurrent(session)) {
-          speech.prefetchLive(utterances[i + 1]);
-        }
         try {
           await speaking;
         } catch (error) {

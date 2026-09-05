@@ -515,18 +515,46 @@ function warmLiveVoice() {
  * Speak one sentence to the speakers now. Kokoro when its worker is ready,
  * otherwise macOS `say`; a Kokoro failure demotes this same sentence to `say`.
  * Throws only when no engine could speak.
+ *
+ * options.prefetchNext — start warming the next sentence in this same turn,
+ * after claiming the current prefetch. Avoids the renderer race where a
+ * separate prefetchLive(N+1) IPC clears the warm slot for N (or N clears N+1)
+ * and every sentence pays a cold ~1–2s synth gap.
  */
-async function speakLive(text) {
+async function speakLive(text, options = {}) {
   const clean = reflowForSpeech(text);
   if (!clean) throw new Error("Nothing to speak.");
 
-  const reused = takeLivePrefetch(clean);
+  let reused = takeLivePrefetch(clean);
   stopLivePlayer();
-  if (!reused) clearLivePrefetch();
   const generation = liveSayGeneration;
   liveSpeakActive = true;
   const { kokoro, platform } = liveDeps;
   kokoro.warmLiveVoice();
+  const prefetchNext = options?.prefetchNext;
+  const engine = selectVoice(kokoro.kokoroStatus().state, {
+    forceSay: forceSayRequested(),
+    platform,
+  });
+
+  // Start N's synth before warming N+1 so the current sentence never queues
+  // behind the next one (that would recreate the gap we're closing).
+  if (!reused && engine === ENGINE.KOKORO) {
+    const pieces = chunkText(clean, KOKORO_PIECE_CHARS, KOKORO_FIRST_PIECE_CHARS);
+    reused = {
+      text: clean,
+      pieces,
+      pending: null,
+      token: -1,
+      adopted: true,
+    };
+    reused.pending = startSynth(pieces[0], () => generation === liveSayGeneration);
+  } else if (!reused && !prefetchNext) {
+    clearLivePrefetch();
+  }
+  if (prefetchNext) {
+    prefetchLive(prefetchNext);
+  }
 
   const wordCount = clean.split(/\s+/).filter(Boolean).length;
   const spoken = (engine, voice, interrupted) => ({
@@ -540,10 +568,6 @@ async function speakLive(text) {
 
   try {
     let rest = clean;
-    const engine = selectVoice(kokoro.kokoroStatus().state, {
-      forceSay: forceSayRequested(),
-      platform,
-    });
     if (engine === ENGINE.KOKORO) {
       const outcome = await speakWithKokoro(clean, generation, reused);
       if (outcome.spoke) {

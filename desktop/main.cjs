@@ -760,8 +760,8 @@ ipcMain.handle("synthesize-speech-chunk", async (_event, chunk, voice) => {
   return synthesizeSpeechChunk(chunk, voice);
 });
 
-ipcMain.handle("speak-live", async (_event, text) => {
-  return speakLive(text);
+ipcMain.handle("speak-live", async (_event, text, options) => {
+  return speakLive(text, options || {});
 });
 
 ipcMain.handle("prefetch-live", async (_event, text) => {

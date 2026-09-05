@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld("readToMe", {
   planSpeech: (text) => ipcRenderer.invoke("plan-speech", text),
   synthesizeSpeechChunk: (chunk, voice) =>
     ipcRenderer.invoke("synthesize-speech-chunk", chunk, voice),
-  speakLive: (text) => ipcRenderer.invoke("speak-live", text),
+  speakLive: (text, options) => ipcRenderer.invoke("speak-live", text, options),
   prefetchLive: (text) => ipcRenderer.invoke("prefetch-live", text),
   stopLiveSay: (options) => ipcRenderer.invoke("stop-live-say", options),
   pauseLiveSay: () => ipcRenderer.invoke("pause-live-say"),
