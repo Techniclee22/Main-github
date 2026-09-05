@@ -20,11 +20,21 @@
   /** @type {ReturnType<typeof setInterval> | null} */
   let followTimer = null;
   let followGeneration = 0;
-  let lastContentHash = null;
-  let pendingHash = null;
+  let lastProfile = null;
+  let pendingProfile = null;
   let pendingStable = 0;
   let followActive = false;
-  let followBusy = false;
+
+  // Real scroll only after ~1/4 of the viewport has moved.
+  const SCROLL_MOVE_FRACTION = 0.25;
+  // Closer than this is Retina flicker / scrollbar noise.
+  const SCROLL_STILL_FRACTION = 0.06;
+  // Mean luminance mismatch (0–255) that means a different page, not a shift.
+  const SCROLL_UNRELATED_SAD = 35;
+  // Ignore Preview settle noise after Read before trusting the baseline.
+  const FOLLOW_ARM_MS = 2000;
+  // Consecutive still peeks (~250ms each) before OCR catch-up.
+  const FOLLOW_SETTLE_PEEKS = 3;
 
   const speech = window.ReadToMeSpeech.create({
     onState(state) {
@@ -64,11 +74,41 @@
       clearInterval(followTimer);
       followTimer = null;
     }
-    pendingHash = null;
+    lastProfile = null;
+    pendingProfile = null;
     pendingStable = 0;
     applyPlaybackUi(
       speech.speaking ? "speaking" : speech.paused ? "paused" : "idle",
     );
+  }
+
+  function scrollFraction(a, b) {
+    if (!a?.length || !b?.length || a.length !== b.length) return 1;
+    const h = a.length;
+    let bestShift = 0;
+    let bestSad = Infinity;
+    const maxShift = Math.floor(h * 0.7);
+    for (let shift = -maxShift; shift <= maxShift; shift += 1) {
+      let sad = 0;
+      let n = 0;
+      for (let y = 0; y < h; y += 1) {
+        const y2 = y - shift;
+        if (y2 < 0 || y2 >= h) continue;
+        sad += Math.abs(a[y2] - b[y]);
+        n += 1;
+      }
+      if (n < h * 0.35) continue;
+      const avg = sad / n;
+      if (avg < bestSad) {
+        bestSad = avg;
+        bestShift = Math.abs(shift);
+      }
+    }
+    let raw = 0;
+    for (let i = 0; i < h; i += 1) raw += Math.abs(a[i] - b[i]);
+    raw /= h;
+    if (bestSad > SCROLL_UNRELATED_SAD && raw > SCROLL_UNRELATED_SAD) return 1;
+    return bestShift / h;
   }
 
   function textFingerprint(text) {
@@ -146,12 +186,10 @@
     );
     const generation = followGeneration;
     let currentText = seedText || "";
-    lastContentHash = null;
-    pendingHash = null;
+    lastProfile = null;
+    pendingProfile = null;
     pendingStable = 0;
-    // Ignore hash flicker while Preview settles after Read — prevents a
-    // false "Page moving…" on the first press.
-    const armedAt = Date.now() + 2500;
+    const armedAt = Date.now() + FOLLOW_ARM_MS;
     let catchupId = 0;
 
     followTimer = setInterval(() => {
@@ -159,91 +197,84 @@
         if (generation !== followGeneration || !followActive) return;
         try {
           const peek = await window.readToMe.peekWindow(windowId);
-          if (!peek?.hash || generation !== followGeneration) return;
+          if (!peek?.profile?.length || generation !== followGeneration) return;
 
-          // Warm-up: keep refreshing the baseline quietly.
           if (Date.now() < armedAt) {
-            lastContentHash = peek.hash;
-            pendingHash = null;
+            lastProfile = peek.profile;
+            pendingProfile = null;
             pendingStable = 0;
             return;
           }
 
-          if (!lastContentHash) {
-            lastContentHash = peek.hash;
+          if (!lastProfile) {
+            lastProfile = peek.profile;
             return;
           }
 
-          if (peek.hash === lastContentHash) {
-            pendingHash = null;
+          const fromBaseline = scrollFraction(lastProfile, peek.profile);
+
+          if (fromBaseline < SCROLL_MOVE_FRACTION) {
+            pendingProfile = null;
             pendingStable = 0;
             return;
           }
 
-          if (peek.hash !== pendingHash) {
-            pendingHash = peek.hash;
+          if (
+            !pendingProfile ||
+            scrollFraction(pendingProfile, peek.profile) >= SCROLL_STILL_FRACTION
+          ) {
+            pendingProfile = peek.profile;
             pendingStable = 1;
             setStatus("Page moving…");
-            // Cancel any in-flight catch-up OCR/speak from an earlier scroll.
             catchupId += 1;
-            followBusy = false;
+            if (speech.speaking || speech.paused) speech.stop();
             return;
           }
 
           pendingStable += 1;
-          // Cut audio once motion is confirmed (2 peeks), not on a one-frame flicker.
-          if (pendingStable === 2 && (speech.speaking || speech.paused)) {
-            speech.stop();
-          }
-          // Resume only after the view stays still a bit longer (~3 peeks / ~750ms).
-          if (pendingStable < 3) {
+          if (pendingStable < FOLLOW_SETTLE_PEEKS) {
             setStatus("Page moving…");
             return;
           }
 
-          lastContentHash = peek.hash;
-          pendingHash = null;
+          lastProfile = peek.profile;
+          pendingProfile = null;
           pendingStable = 0;
 
           const myCatchup = ++catchupId;
           setStatus("Page settled — reading…");
-          followBusy = true;
+          const next = await window.readToMe.readWindowById(windowId);
+          if (
+            myCatchup !== catchupId ||
+            generation !== followGeneration ||
+            !followActive
+          ) {
+            return;
+          }
+
+          if (!textsDifferEnough(currentText, next.text)) {
+            if (speech.speaking || speech.paused) setStatus("Speaking…");
+            else setStatus("Following the page — scroll anytime");
+            return;
+          }
+
+          currentText = next.text;
+          if (next.title) {
+            selected = { id: next.id || windowId, name: next.title };
+            targetLabel.textContent = next.title;
+            targetLabel.title = next.title;
+          }
+
+          reading = true;
           try {
-            const next = await window.readToMe.readWindowById(windowId);
-            if (
-              myCatchup !== catchupId ||
-              generation !== followGeneration ||
-              !followActive
-            ) {
-              return;
-            }
-
-            if (!textsDifferEnough(currentText, next.text)) {
-              if (speech.speaking || speech.paused) setStatus("Speaking…");
-              else setStatus("Following the page — scroll anytime");
-              return;
-            }
-
-            currentText = next.text;
-            if (next.title) {
-              selected = { id: next.id || windowId, name: next.title };
-              targetLabel.textContent = next.title;
-              targetLabel.title = next.title;
-            }
-
-            reading = true;
-            try {
-              await speakTextStreaming(next.text, {
-                statusPrefix: "Speaking new page…",
-              });
-              if (myCatchup !== catchupId || !followActive) return;
-              setStatus("Following the page — scroll anytime");
-            } finally {
-              reading = false;
-              readBtn.disabled = false;
-            }
+            await speakTextStreaming(next.text, {
+              statusPrefix: "Speaking new page…",
+            });
+            if (myCatchup !== catchupId || !followActive) return;
+            setStatus("Following the page — scroll anytime");
           } finally {
-            if (myCatchup === catchupId) followBusy = false;
+            reading = false;
+            readBtn.disabled = false;
           }
         } catch (error) {
           // Keep following; one failed peek shouldn't kill the session.

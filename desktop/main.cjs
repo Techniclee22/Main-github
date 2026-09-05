@@ -22,7 +22,6 @@ const {
   pauseLiveSay,
   resumeLiveSay,
 } = require("./lib/tts.cjs");
-const crypto = require("crypto");
 
 const execFileAsync = promisify(execFile);
 
@@ -430,10 +429,22 @@ async function ocrPng(imageBuffer) {
   }
 }
 
-/** Coarse fingerprint for scroll detection (ignores Retina flicker). */
-function peekContentHash(image) {
-  const tiny = image.resize({ width: 32, height: 40, quality: "good" });
-  return crypto.createHash("sha1").update(tiny.toJPEG(25)).digest("hex");
+function peekVerticalProfile(image) {
+  const width = 24;
+  const height = 48;
+  const tiny = image.resize({ width, height, quality: "good" });
+  const bgra = tiny.toBitmap();
+  const profile = new Array(height);
+  for (let y = 0; y < height; y += 1) {
+    let sum = 0;
+    for (let x = 0; x < width; x += 1) {
+      const i = (y * width + x) * 4;
+      // BGRA → luminance (nativeImage.toBitmap channel order)
+      sum += 0.114 * bgra[i] + 0.587 * bgra[i + 1] + 0.299 * bgra[i + 2];
+    }
+    profile[y] = Math.round(sum / width);
+  }
+  return profile;
 }
 
 
@@ -538,8 +549,8 @@ ipcMain.handle("peek-window", async (_event, sourceId) => {
   const match = sources.find((source) => source.id === id);
   if (!match || match.thumbnail.isEmpty()) return null;
 
-  const hash = peekContentHash(match.thumbnail);
-  return { id, hash, name: match.name };
+  const profile = peekVerticalProfile(match.thumbnail);
+  return { id, profile, name: match.name };
 });
 
 ipcMain.handle("read-window-by-id", async (_event, sourceId) => {
