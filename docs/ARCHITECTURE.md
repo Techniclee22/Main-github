@@ -100,7 +100,7 @@ A previous `say` close handler used to unlink `liveSayTempFile`, which could be 
 
 Mac retest locked in two-column left-then-right reading and PDF ↔ Terminal voice switches. The follow timer must not await a full `say` loop.
 
-`update-and-run.sh` fast-forwards whatever branch the clone is on. It does not pin a Cursor feature branch and it does not `reset --hard`. If `git pull --ff-only` fails (local edits, or `npm install` rewriting `desktop/package-lock.json`), the script prints stash / reset / checkout-main recovery instead of a raw git error. `update-and-run-focus.sh` is an alias for that script.
+`update-and-run.sh` fast-forwards whatever branch the clone is on. It does not pin a Cursor feature branch and it does not `reset --hard`. It throws away a dirty `desktop/package-lock.json` before `git pull` because `npm install` rewrites that file. If pull still fails, the script prints stash / reset / `switch-to-main.sh` recovery. `update-and-run-focus.sh` is an alias for update-and-run. `switch-to-main.sh` restores the lockfile, checks out `main`, then launches.
 
 Launch scripts must re-exec under bash and quote `${BRANCH}`. Mac Terminal is zsh; `set -u` plus `$BRANCH…` looks up a different parameter and dies before `git fetch`.
 

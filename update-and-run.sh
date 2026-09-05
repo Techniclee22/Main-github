@@ -19,6 +19,14 @@ if [[ ! -d "${DESKTOP_DIR}" ]]; then
 fi
 
 cd "${REPO_DIR}"
+# npm install rewrites the lockfile. Throw that dirt away before git pull/checkout.
+if git rev-parse --verify HEAD >/dev/null 2>&1; then
+  if ! git diff --quiet -- desktop/package-lock.json 2>/dev/null \
+    || ! git diff --cached --quiet -- desktop/package-lock.json 2>/dev/null; then
+    echo "-> Discarding local desktop/package-lock.json (npm install rewrites it)"
+    git checkout HEAD -- desktop/package-lock.json || true
+  fi
+fi
 BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 if [[ -z "${BRANCH}" || "${BRANCH}" == "HEAD" ]]; then
   BRANCH="detached"
@@ -37,8 +45,12 @@ if git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1
     echo "If you just want the latest from GitHub on this branch:"
     echo "  git fetch origin && git reset --hard origin/${BRANCH}"
     echo
-    echo "If the app has moved onto main and this clone is still on an old feature branch:"
-    echo "  git fetch origin && git checkout main && git pull"
+    echo "If this clone is still on an old Cursor branch, switch to main:"
+    echo "  bash ./switch-to-main.sh"
+    echo
+    echo "Or by hand (the lockfile line unblocks git checkout):"
+    echo "  git checkout HEAD -- desktop/package-lock.json"
+    echo "  git fetch origin && git checkout main && git pull --ff-only"
     echo
     exit 1
   fi
