@@ -25,14 +25,14 @@ Each “speed up” / “fix follow” pass rewrote several of those files. With
 
 ```bash
 cd desktop
-npm run check-api
+npm run check
 ```
 
-`npm start`, `run.sh`, and `update-and-run.sh` all run this check first. If preload, main, renderer, or tts disagree with the contract, the app **will not start**.
+`npm start`, `run.sh`, and `update-and-run.sh` still run `check-api` first so launch stays fast. `npm run check` adds the OCR and TTS unit tests. If preload, main, renderer, or tts disagree with the contract, the app **will not start**.
 
 When you intentionally rename something:
 
 1. Edit `api-contract.json`
 2. Update every matching call site
-3. Run `npm run check-api`
+3. Run `npm run check`
 4. Commit contract + consumers together

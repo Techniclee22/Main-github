@@ -5,9 +5,6 @@
 
 set -euo pipefail
 
-BRANCH="cursor/read-to-me-app-bbd6"
-
-# Find this script's repo (works no matter where you run it from).
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$SCRIPT_DIR"
 DESKTOP_DIR="$REPO_DIR/desktop"
@@ -18,11 +15,15 @@ if [[ ! -d "$DESKTOP_DIR" ]]; then
   exit 1
 fi
 
-echo "→ Updating Read to Me ($BRANCH)…"
 cd "$REPO_DIR"
+BRANCH="$(git branch --show-current)"
+echo "→ Updating Read to Me (${BRANCH:-detached})…"
 git fetch origin
-git checkout "$BRANCH"
-git reset --hard "origin/$BRANCH"
+if git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1; then
+  git pull --ff-only
+else
+  echo "No upstream for this clone. Using the files already on disk."
+fi
 
 echo "→ Installing dependencies…"
 cd "$DESKTOP_DIR"

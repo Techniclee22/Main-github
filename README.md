@@ -7,7 +7,7 @@ This is **not** a website you paste text into. It sits on top of whatever you al
 ## What you need
 
 - A **Mac** (your PDF screenshot is Preview on macOS)
-- [Node.js LTS](https://nodejs.org) installed (one-time)
+- [Node.js 20+](https://nodejs.org) installed (one-time)
 - Screen Recording permission when macOS asks (required to see other windows)
 
 ## First-time setup
@@ -89,7 +89,7 @@ The desktop app talks across **preload → main → renderer → TTS**. Those la
 
 - Contract: [`desktop/api-contract.json`](desktop/api-contract.json)
 - Rules: [`desktop/NAMING.md`](desktop/NAMING.md)
-- Guard: `cd desktop && npm run check-api` (also runs before `npm start` / `update-and-run.sh`)
+- Guard: `cd desktop && npm run check` (contract plus unit tests). `cd desktop && npm start` still runs `check-api` first.
 
 If a rename is needed, change the contract and every consumer in **one** commit — never one file alone.
 
@@ -97,8 +97,18 @@ If a rename is needed, change the contract and every consumer in **one** commit 
 
 | Folder | Role |
 | --- | --- |
-| `desktop/` | **The product** — Electron floating pill |
-| `src/` | Earlier web experiment (secondary) |
+| `desktop/` | **The product.** Electron floating pill |
+| `src/` | Frozen web experiment. Do not extend it. |
+
+## Checks
+
+Node 20 is enough. You do not need Electron or a Mac for this.
+
+```bash
+npm --prefix desktop run check
+```
+
+That verifies IPC names and the OCR/TTS unit tests. GitHub Actions runs the same command on every pull request.
 
 ## Troubleshooting
 
