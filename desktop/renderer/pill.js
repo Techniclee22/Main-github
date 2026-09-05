@@ -41,16 +41,11 @@
   /** Window id follow is currently reading — blocks stale continue-after-page. */
   let followTargetId = null;
 
-  // Real scroll only after ~1/4 of the viewport has moved.
   const SCROLL_MOVE_FRACTION = 0.25;
-  // Closer than this is Retina flicker / scrollbar noise.
   const SCROLL_STILL_FRACTION = 0.06;
-  // Mean luminance mismatch (0–255) that means a different page, not a shift.
-  const SCROLL_UNRELATED_SAD = 35;
-  // Ignore Preview settle noise after Read before trusting the baseline.
   const FOLLOW_ARM_MS = 2000;
-  // Consecutive still peeks (~250ms each) before OCR catch-up.
   const FOLLOW_SETTLE_PEEKS = 3;
+  const { scrollFraction } = window.ReadToMeFollowPeek;
 
   const speech = window.ReadToMeSpeech.create({
     onState(state) {
@@ -118,35 +113,6 @@
 
   function speechIsCurrent(session) {
     return session === speakSession && !speech.stopped;
-  }
-
-  function scrollFraction(a, b) {
-    if (!a?.length || !b?.length || a.length !== b.length) return 1;
-    const h = a.length;
-    let bestShift = 0;
-    let bestSad = Infinity;
-    const maxShift = Math.floor(h * 0.7);
-    for (let shift = -maxShift; shift <= maxShift; shift += 1) {
-      let sad = 0;
-      let n = 0;
-      for (let y = 0; y < h; y += 1) {
-        const y2 = y - shift;
-        if (y2 < 0 || y2 >= h) continue;
-        sad += Math.abs(a[y2] - b[y]);
-        n += 1;
-      }
-      if (n < h * 0.35) continue;
-      const avg = sad / n;
-      if (avg < bestSad) {
-        bestSad = avg;
-        bestShift = Math.abs(shift);
-      }
-    }
-    let raw = 0;
-    for (let i = 0; i < h; i += 1) raw += Math.abs(a[i] - b[i]);
-    raw /= h;
-    if (bestSad > SCROLL_UNRELATED_SAD && raw > SCROLL_UNRELATED_SAD) return 1;
-    return bestShift / h;
   }
 
   function textFingerprint(text) {
@@ -262,6 +228,23 @@
       }
     }
     return session;
+  }
+
+  function queueFollowSpeech(text, { statusPrefix, windowId, after } = {}) {
+    reading = true;
+    void speakTextStreaming(text, { statusPrefix, windowId })
+      .then(async (session) => {
+        if (typeof after === "function" && speechIsCurrent(session) && followActive) {
+          await after(session);
+        }
+      })
+      .catch((error) => {
+        console.warn("Follow speech failed:", error?.message || error);
+      })
+      .finally(() => {
+        reading = false;
+        readBtn.disabled = false;
+      });
   }
 
   /**
@@ -421,19 +404,27 @@
 
             pendingFocusKey = "";
             pendingFocusStable = 0;
-            // OCR first while the old page can keep speaking. Only stop/switch
-            // when the new window has readable text — otherwise adopt the focus
-            // key once so Terminal doesn't spam OCR every 250ms.
+            followCatchupId += 1;
+            speakSession += 1;
+            if (speech.speaking || speech.paused) speech.stop();
             setStatus(`Checking ${hint.app || "window"}…`);
             const next = await window.readToMe.readActiveWindow();
             if (generation !== followGeneration || !followActive) return;
 
-            if (!next?.text?.trim() || next.empty) {
+            const switchedToReader = /preview|acrobat|adobe|skim/i.test(
+              hint.app || "",
+            );
+            const nextLooksLikePdf = /\.pdf\b/i.test(next?.title || "");
+            const stayedOnOldWindow =
+              Boolean(next?.id && followedId && next.id === followedId);
+            const unusable =
+              !next?.text?.trim() ||
+              next.empty ||
+              (!switchedToReader && (nextLooksLikePdf || stayedOnOldWindow));
+
+            if (unusable) {
               followFocusKey = key;
               followWaitingForReadable = true;
-              followCatchupId += 1;
-              speakSession += 1;
-              if (speech.speaking || speech.paused) speech.stop();
               void window.readToMe.hideReadingHighlight();
               setStatus(
                 `Can't read ${hint.app || "that window"} — switch back to continue`,
@@ -441,8 +432,6 @@
               return;
             }
 
-            followCatchupId += 1;
-            if (speech.speaking || speech.paused) speech.stop();
             followFocusKey = key;
             followWaitingForReadable = false;
             followedId = next.id || followedId;
@@ -456,16 +445,10 @@
             lastProfile = null;
             pendingProfile = null;
             pendingStable = 0;
-            reading = true;
-            try {
-              await speakTextStreaming(next.text, {
-                statusPrefix: "Speaking…",
-                windowId: followedId,
-              });
-            } finally {
-              reading = false;
-              readBtn.disabled = false;
-            }
+            queueFollowSpeech(next.text, {
+              statusPrefix: "Speaking…",
+              windowId: followedId,
+            });
             return;
           }
 
@@ -538,26 +521,22 @@
             targetLabel.title = next.title;
           }
 
-          reading = true;
-          try {
-            await speakTextStreaming(next.text, {
-              statusPrefix: "Speaking new page…",
-              windowId: next.id || followedId,
-            });
-            if (myCatchup !== followCatchupId || !followActive) return;
-            if (!speech.stopped) {
-              await continueAfterPage(
-                next.id || followedId,
-                next.text,
-                generation,
-              );
-            } else {
-              setStatus("Following the page — scroll anytime");
-            }
-          } finally {
-            reading = false;
-            readBtn.disabled = false;
-          }
+          queueFollowSpeech(next.text, {
+            statusPrefix: "Speaking new page…",
+            windowId: next.id || followedId,
+            after: async () => {
+              if (!speech.stopped) {
+                await continueAfterPage(
+                  next.id || followedId,
+                  next.text,
+                  generation,
+                );
+              } else {
+                setStatus("Following the page — scroll anytime");
+              }
+            },
+          });
+          return;
         } catch (error) {
           // Keep following; one failed peek shouldn't kill the session.
           console.warn("Follow-page check failed:", error?.message || error);

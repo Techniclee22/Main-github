@@ -20,7 +20,7 @@ While speech is running, a dim reading band overlays the target window. Scroll-f
 
 **Speech session.** `desktop/renderer/speech.js` arms one speak loop at a time. `pill.js` splits the page into sentences and calls `speakLive` once per sentence. The WAV helper and cloud neural path have no Read call site. If live `say` fails, the fallback is Chromium `speechSynthesis`.
 
-**Main process.** `desktop/main.cjs` lists windows, scores the frontmost PDF-like target, captures a PNG, runs Tesseract, shows the highlight overlay, and scrolls the target with AppleScript.
+**Main process.** `desktop/main.cjs` lists windows, picks the one that matches the frontmost app's window title, captures a PNG, runs Tesseract, shows the highlight overlay, and scrolls the target with AppleScript.
 
 **OCR layout.** `desktop/lib/ocr-layout.cjs` turns word boxes into speech text. Two-column pages read left column top to bottom, then right. Curly quotes become ASCII so `say` does not turn "don't" into "don t".
 
@@ -86,15 +86,23 @@ Page Down is a no-op while the pill holds focus. Scroll-follow after the user sc
 
 `synthesize-speech` IPC is live. If `AI_GATEWAY_API_KEY` or `OPENAI_API_KEY` is set, that handler may send page text to the cloud. Read does not call it.
 
-Follow state in `pill.js` is a handful of timers and generation counters (`speakSession`, `followGeneration`, `followTargetId`). Those exist because an older loop kept talking after retarget. Do not start a second speak loop without bumping `speakSession`. `stopFollow()` must not bump `speakSession`. `startFollow()` calls it mid-Read.
+Follow state in `pill.js` is a handful of timers and generation counters (`speakSession`, `followGeneration`, `followTargetId`). Those exist because an older loop kept talking after retarget. Do not start a second speak loop without bumping `speakSession`. `stopFollow()` must not bump `speakSession`. `startFollow()` calls it mid-Read. The follow timer must not `await` a full speak loop — that blocks the next focus switch.
 
 OCR layout returns word boxes on the read payload (`words`) so a later band can use them. The pill still maps highlight by sentence fraction. Do not add another consumer of the string-only shape.
+
+Two-column split requires a gap between left-column box edges and right-column box edges. A busy page-center band is not enough to refuse a split.
+
+Electron `source.name` is the window title. Terminal tabs look like `Main-github — -zsh — 81×30`, not `Terminal`. Only pick a source that belongs to the focused app. A Preview window with no `.pdf` suffix must not win ties when Terminal is frontmost.
+
+Dark captures (Terminal) invert before OCR. Peek flicker on a dark UI is not a page scroll and must not stop `say`.
 
 A previous `say` close handler used to unlink `liveSayTempFile`, which could be the next sentence's file. Cleanup now unlinks only the file that spawn owned.
 
 The last Mac report was speech stopping after a few words. The tempfile fix is the likely root cause. It has not been retested on a Mac.
 
 `update-and-run.sh` fast-forwards whatever branch the clone is on. It does not pin a Cursor feature branch and it does not `reset --hard`. If `git pull --ff-only` fails (local edits, or `npm install` rewriting `desktop/package-lock.json`), the script prints stash / reset / checkout-main recovery instead of a raw git error.
+
+Launch scripts must re-exec under bash and quote `${BRANCH}`. Mac Terminal is zsh; `set -u` plus `$BRANCH…` looks up a different parameter and dies before `git fetch`.
 
 CI pins Node 22 (`.nvmrc`). Node 20 reached end-of-life on 2026-04-30.
 

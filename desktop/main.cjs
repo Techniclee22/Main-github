@@ -12,6 +12,8 @@ const os = require("os");
 const { execFile } = require("child_process");
 const { promisify } = require("util");
 const { createWorker } = require("tesseract.js");
+const { pickSource } = require("./lib/window-pick.cjs");
+const { shouldInvertBgra, invertBgra } = require("./lib/ocr-image.cjs");
 const { textFromOcrPage } = require("./lib/ocr-layout.cjs");
 const {
   synthesizeSpeech,
@@ -378,37 +380,38 @@ async function listWindows() {
     }));
 }
 
-function scoreWindowCandidate(win, focus) {
-  const name = (win.name || "").toLowerCase();
-  let score = 0;
-
-  if (focus?.app) {
-    const app = focus.app.toLowerCase();
-    if (name.includes(app) || app.includes(name)) score += 120;
-    if (focus.title) {
-      const title = focus.title.toLowerCase();
-      if (title && (name.includes(title) || title.includes(name))) score += 80;
-    }
-    // PDF bonus only when the user is actually in Preview (or similar).
-    const readingApp =
-      /preview|acrobat|adobe/.test(app) || /\.pdf\b/.test(app);
-    if (readingApp && /\.pdf\b/.test(name)) score += 40;
-    if (!readingApp && /\.pdf\b/.test(name) && !name.includes(app)) score -= 60;
-    return score;
-  }
-
-  if (/\.pdf\b/.test(name)) score += 50;
-  if (/preview/.test(name)) score += 30;
-  if (/acrobat|adobe|edge|chrome|safari|firefox|brave/.test(name)) score += 12;
-  return score;
-}
-
-/**
- * Electron source ids look like "window:CGWindowID:0" on macOS.
- */
 function nativeWindowId(sourceId) {
   const parts = String(sourceId || "").split(":");
   return parts.length >= 2 && /^\d+$/.test(parts[1]) ? parts[1] : null;
+}
+
+async function listAppWindowTitles(appName) {
+  if (process.platform !== "darwin" || !appName) return [];
+  try {
+    const escaped = escapeAppleScriptString(appName);
+    const { stdout } = await execFileAsync(
+      "osascript",
+      [
+        "-e",
+        `tell application "System Events"
+  set acc to ""
+  tell application process "${escaped}"
+    repeat with w in windows
+      set acc to acc & "|||" & (name of w as text)
+    end repeat
+  end tell
+  return acc
+end tell`,
+      ],
+      { timeout: 2500 },
+    );
+    return String(stdout)
+      .split("|||")
+      .map((part) => part.trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -432,14 +435,10 @@ async function resolveTargetWindow(preferredId) {
     if (preferred) return preferred;
   }
 
-  // Use the cached focus hint from background polling — don't wait on
-  // another osascript round-trip at click time.
-  const ranked = [...usable].sort(
-    (a, b) =>
-      scoreWindowCandidate(b, lastExternalFocus) -
-      scoreWindowCandidate(a, lastExternalFocus),
-  );
-  return ranked[0];
+  const appTitles = lastExternalFocus?.app
+    ? await listAppWindowTitles(lastExternalFocus.app)
+    : [];
+  return pickSource(usable, lastExternalFocus, appTitles);
 }
 
 /**
@@ -548,6 +547,15 @@ function prepareImageForOcr(imageBuffer) {
   const cropHeight = Math.max(120, Math.floor(height * OCR_TOP_FRACTION));
   if (cropHeight < height) {
     image = image.crop({ x: 0, y: 0, width, height: cropHeight });
+    ({ width, height } = image.getSize());
+  }
+
+  const bitmap = image.toBitmap();
+  if (shouldInvertBgra(bitmap)) {
+    image = nativeImage.createFromBitmap(invertBgra(bitmap), {
+      width,
+      height,
+    });
   }
 
   image = addWhiteBorder(image, OCR_BORDER_PX);
@@ -714,13 +722,27 @@ ipcMain.handle("get-focus-hint", async () => refreshFrontmost());
 
 ipcMain.handle("read-selected-window", async () => {
   const source = await resolveTargetWindow(selectedSourceId);
+  if (!source) {
+    throw new Error(
+      "No readable window found. Click the window, then try Read again.",
+    );
+  }
   return readWindowSource(source);
 });
 
 ipcMain.handle("read-active-window", async () => {
   await refreshFrontmost();
   const source = await resolveTargetWindow(null);
-  // Soft-empty so Terminal/focus-switch OCR failures don't spam the main log.
+  if (!source) {
+    return {
+      text: "",
+      title: lastExternalFocus?.app || "",
+      columns: 1,
+      id: null,
+      empty: true,
+      words: [],
+    };
+  }
   return readWindowSource(source, { softEmpty: true });
 });
 

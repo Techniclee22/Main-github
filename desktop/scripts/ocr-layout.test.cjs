@@ -27,6 +27,33 @@ function twoColumnPage() {
   return words;
 }
 
+/** Inner edges sit in the page-center band — the occupancy gate treated this as one column. */
+function denseTwoColumnPage() {
+  const words = [];
+  for (let row = 0; row < 24; row += 1) {
+    const y = 30 + row * 22;
+    for (const x of [50, 150, 260, 370]) {
+      words.push(word("Leftside", x, y, x + 90, y + 16));
+    }
+    for (const x of [540, 650, 760, 870]) {
+      words.push(word("Rightside", x, y, x + 90, y + 16));
+    }
+  }
+  return words;
+}
+
+function denseFullWidthPage() {
+  const words = [];
+  for (let row = 0; row < 16; row += 1) {
+    const y = 40 + row * 22;
+    for (let i = 0; i < 12; i += 1) {
+      const x = 40 + i * 75;
+      words.push(word(`W${row}x${i}`, x, y, x + 70, y + 16));
+    }
+  }
+  return words;
+}
+
 describe("sanitizeForSpeech", () => {
   it("keeps curly apostrophes as ASCII contractions", () => {
     const sanitized = sanitizeForSpeech("don\u2019t can\u2019t it\u2019s");
@@ -54,17 +81,16 @@ describe("clusterColumns", () => {
     assert.equal(clustered.length, 1);
   });
 
-  it("keeps full-width prose as one column", () => {
-    const words = [];
-    const xs = [40, 180, 320, 460, 600, 740];
-    for (let row = 0; row < 16; row += 1) {
-      const y = 40 + row * 22;
-      for (let i = 0; i < xs.length; i += 1) {
-        words.push(word(`W${row}x${i}`, xs[i], y, xs[i] + 70, y + 16));
-      }
-    }
-    const clustered = clusterColumns(words, 1000);
+  it("keeps packed full-width prose as one column", () => {
+    const clustered = clusterColumns(denseFullWidthPage(), 1000);
     assert.equal(clustered.length, 1);
+  });
+
+  it("splits a two-column page whose inner edges sit near center", () => {
+    const clustered = clusterColumns(denseTwoColumnPage(), 1000);
+    assert.equal(clustered.length, 2);
+    assert.ok(clustered[0].every((item) => item.text === "Leftside"));
+    assert.ok(clustered[1].every((item) => item.text === "Rightside"));
   });
 });
 
@@ -87,6 +113,19 @@ describe("textFromOcrPage", () => {
     assert.ok(rightWord);
     assert.equal(rightWord.column, 1);
     assert.ok(rightWord.bbox.x0 > 500);
+  });
+
+  it("reads dense two-column left column before right", () => {
+    const result = textFromOcrPage(
+      { words: denseTwoColumnPage(), width: 0, height: 0, text: "" },
+      { width: 1000, height: 800 },
+    );
+    assert.equal(result.columns, 2);
+    const leftIdx = result.text.indexOf("Leftside");
+    const rightIdx = result.text.indexOf("Rightside");
+    assert.ok(leftIdx >= 0);
+    assert.ok(rightIdx >= 0);
+    assert.ok(leftIdx < rightIdx);
   });
 });
 

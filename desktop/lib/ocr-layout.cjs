@@ -136,26 +136,38 @@ function splitByXMeans(words, pageWidth) {
     else right.push(word);
   }
   if (left.length < 14 || right.length < 14) return null;
-  if (gutterWordCount(words, pageWidth) > words.length * 0.15) return null;
+  if (!hasColumnGutter(words, pageWidth)) return null;
   return [left, right];
 }
 
-function gutterWordCount(words, pageWidth) {
-  const lo = pageWidth * 0.4;
-  const hi = pageWidth * 0.6;
-  let n = 0;
+function columnGapPx(words, pageWidth) {
+  const mid = pageWidth / 2;
+  let leftMax = -Infinity;
+  let rightMin = Infinity;
+  let leftN = 0;
+  let rightN = 0;
   for (const word of words) {
-    const x = wordCenterX(word);
-    if (x >= lo && x < hi) n += 1;
+    if (wordCenterX(word) < mid) {
+      leftMax = Math.max(leftMax, word.bbox.x1);
+      leftN += 1;
+    } else {
+      rightMin = Math.min(rightMin, word.bbox.x0);
+      rightN += 1;
+    }
   }
-  return n;
+  if (leftN < 10 || rightN < 10) return -Infinity;
+  return rightMin - leftMax;
+}
+
+function hasColumnGutter(words, pageWidth) {
+  return columnGapPx(words, pageWidth) >= Math.max(16, pageWidth * 0.028);
 }
 
 function clusterColumns(words, pageWidth) {
   if (!words.length) return [words];
 
   let split = findGutterSplit(words, pageWidth);
-  if (split != null && gutterWordCount(words, pageWidth) > words.length * 0.15) {
+  if (split != null && !hasColumnGutter(words, pageWidth)) {
     split = null;
   }
   if (split != null) {
@@ -183,7 +195,7 @@ function clusterColumns(words, pageWidth) {
   const means = splitByXMeans(words, pageWidth);
   if (means) return means;
 
-  if (gutterWordCount(words, pageWidth) <= words.length * 0.08) {
+  if (hasColumnGutter(words, pageWidth)) {
     const mid = pageWidth / 2;
     const left = words.filter((w) => wordCenterX(w) < mid);
     const right = words.filter((w) => wordCenterX(w) >= mid);
@@ -381,6 +393,8 @@ module.exports = {
   clusterColumns,
   wordsToText,
   findGutterSplit,
+  columnGapPx,
+  hasColumnGutter,
   isReadableWord,
   sanitizeForSpeech,
   normalizeQuotes,
