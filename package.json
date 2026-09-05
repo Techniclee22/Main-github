@@ -3,12 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
+    "check": "npm --prefix desktop run check",
+    "test": "npm --prefix desktop test",
+    "start": "npm --prefix desktop start",
+    "dev": "npm --prefix desktop start",
     "desktop": "npm --prefix desktop start",
-    "desktop:install": "npm --prefix desktop install"
+    "desktop:install": "npm --prefix desktop install",
+    "web:dev": "next dev",
+    "web:build": "next build",
+    "web:start": "next start",
+    "web:lint": "eslint"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.74",
