@@ -16,7 +16,10 @@
     "stopLiveSay": "stop-live-say",
     "pauseLiveSay": "pause-live-say",
     "resumeLiveSay": "resume-live-say",
-    "resizePill": "resize-pill"
+    "resizePill": "resize-pill",
+    "highlightReading": "highlight-reading",
+    "hideReadingHighlight": "hide-reading-highlight",
+    "scrollTargetWindow": "scroll-target-window"
   },
   "ttsExports": [
     "synthesizeSpeech",

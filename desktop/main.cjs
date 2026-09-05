@@ -42,6 +42,8 @@ const OCR_BORDER_PX = 16;
 
 /** @type {BrowserWindow | null} */
 let pillWindow = null;
+/** @type {BrowserWindow | null} */
+let highlightWindow = null;
 /** @type {import('tesseract.js').Worker | null} */
 let ocrWorker = null;
 /** @type {string | null} */
@@ -50,6 +52,14 @@ let selectedSourceId = null;
 let lastExternalFocus = null;
 /** @type {ReturnType<typeof setInterval> | null} */
 let focusPollTimer = null;
+
+const HIGHLIGHT_BAND_PX = 48;
+
+function escapeAppleScriptString(value) {
+  return String(value || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"');
+}
 
 /** Mute leptonica/tesseract spam that writes straight to stderr. */
 function installTessStderrFilter() {
@@ -136,6 +146,162 @@ function createPillWindow() {
   pillWindow.on("closed", () => {
     pillWindow = null;
   });
+}
+
+function ensureHighlightWindow() {
+  if (highlightWindow && !highlightWindow.isDestroyed()) return highlightWindow;
+
+  highlightWindow = new BrowserWindow({
+    width: 200,
+    height: HIGHLIGHT_BAND_PX,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    alwaysOnTop: true,
+    focusable: false,
+    skipTaskbar: true,
+    hasShadow: false,
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+
+  highlightWindow.setIgnoreMouseEvents(true);
+  highlightWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  highlightWindow.setAlwaysOnTop(true, "screen-saver");
+  highlightWindow.loadFile(path.join(__dirname, "renderer", "highlight.html"));
+  highlightWindow.on("closed", () => {
+    highlightWindow = null;
+  });
+  return highlightWindow;
+}
+
+function destroyHighlightWindow() {
+  if (!highlightWindow || highlightWindow.isDestroyed()) {
+    highlightWindow = null;
+    return;
+  }
+  highlightWindow.destroy();
+  highlightWindow = null;
+}
+
+/**
+ * Screen bounds of the external app's front window (macOS).
+ * Falls back to the primary display work area.
+ * @returns {Promise<{x:number,y:number,width:number,height:number}|null>}
+ */
+async function getSourceScreenBounds(_sourceId) {
+  const fallback = () => {
+    const area = screen.getPrimaryDisplay().workArea;
+    return {
+      x: Math.round(area.x),
+      y: Math.round(area.y),
+      width: Math.round(area.width),
+      height: Math.round(area.height),
+    };
+  };
+
+  if (process.platform !== "darwin") return fallback();
+
+  const appName = lastExternalFocus?.app;
+  if (!appName || isOurProcessName(appName)) return fallback();
+
+  try {
+    const escaped = escapeAppleScriptString(appName);
+    const { stdout } = await execFileAsync(
+      "osascript",
+      [
+        "-e",
+        `tell application "System Events" to tell application process "${escaped}" to get {position, size} of front window`,
+      ],
+      { timeout: 2500 },
+    );
+    const nums = String(stdout)
+      .match(/-?\d+/g)
+      ?.map((n) => Number(n));
+    if (nums && nums.length >= 4 && nums[2] > 0 && nums[3] > 0) {
+      return {
+        x: nums[0],
+        y: nums[1],
+        width: nums[2],
+        height: nums[3],
+      };
+    }
+  } catch {
+    // Accessibility / no front window — fall through.
+  }
+
+  return fallback();
+}
+
+/**
+ * Place the translucent reading band at a vertical fraction of the target window.
+ */
+async function showReadingHighlight({ sourceId, fraction } = {}) {
+  const bounds = await getSourceScreenBounds(sourceId);
+  if (!bounds) return { ok: false };
+
+  const win = ensureHighlightWindow();
+  const frac = Math.min(1, Math.max(0, Number(fraction) || 0));
+  const rawY = Math.round(bounds.y + bounds.height * frac);
+  const y = Math.max(
+    bounds.y,
+    Math.min(rawY, bounds.y + bounds.height - HIGHLIGHT_BAND_PX),
+  );
+
+  win.setBounds({
+    x: Math.round(bounds.x),
+    y,
+    width: Math.round(bounds.width),
+    height: HIGHLIGHT_BAND_PX,
+  });
+  win.setIgnoreMouseEvents(true);
+  if (!win.isVisible()) win.showInactive();
+  return { ok: true };
+}
+
+function hideReadingHighlight() {
+  if (highlightWindow && !highlightWindow.isDestroyed()) {
+    highlightWindow.hide();
+  }
+  return { ok: true };
+}
+
+/**
+ * Best-effort scroll of the last external app (~one viewport / ~70% height).
+ */
+async function scrollTargetWindow() {
+  if (process.platform !== "darwin") return { ok: false };
+
+  const appName = lastExternalFocus?.app;
+  if (!appName || isOurProcessName(appName)) return { ok: false };
+
+  const escaped = escapeAppleScriptString(appName);
+  try {
+    // Activate + Page Down (keycode 121) ≈ one viewport.
+    await execFileAsync(
+      "osascript",
+      [
+        "-e",
+        `tell application "System Events"
+  set frontmost of application process "${escaped}" to true
+  delay 0.08
+  key code 121
+end tell`,
+      ],
+      { timeout: 4000 },
+    );
+    return { ok: true };
+  } catch (error) {
+    console.warn("scroll-target-window failed:", error?.message || error);
+    return { ok: false };
+  }
 }
 
 function isOurProcessName(name) {
@@ -484,6 +650,8 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", async () => {
+  hideReadingHighlight();
+  destroyHighlightWindow();
   stopFocusPolling();
   stopLiveSay();
   if (ocrWorker) {
@@ -561,6 +729,14 @@ ipcMain.handle("read-window-by-id", async (_event, sourceId) => {
   const source = await resolveTargetWindow(sourceId || selectedSourceId);
   return readWindowSource(source);
 });
+
+ipcMain.handle("highlight-reading", async (_event, payload = {}) => {
+  return showReadingHighlight(payload);
+});
+
+ipcMain.handle("hide-reading-highlight", async () => hideReadingHighlight());
+
+ipcMain.handle("scroll-target-window", async () => scrollTargetWindow());
 
 ipcMain.handle("resize-pill", async (_event, { width, height }) => {
   if (!pillWindow || pillWindow.isDestroyed()) return;

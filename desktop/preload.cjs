@@ -18,4 +18,7 @@ contextBridge.exposeInMainWorld("readToMe", {
   pauseLiveSay: () => ipcRenderer.invoke("pause-live-say"),
   resumeLiveSay: () => ipcRenderer.invoke("resume-live-say"),
   resizePill: (size) => ipcRenderer.invoke("resize-pill", size),
+  highlightReading: (opts) => ipcRenderer.invoke("highlight-reading", opts),
+  hideReadingHighlight: () => ipcRenderer.invoke("hide-reading-highlight"),
+  scrollTargetWindow: () => ipcRenderer.invoke("scroll-target-window"),
 });

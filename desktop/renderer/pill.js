@@ -135,45 +135,95 @@
     return ratio < 0.55;
   }
 
-  async function speakTextStreaming(text, { statusPrefix } = {}) {
+  function splitSentences(text) {
+    const clean = String(text || "").replace(/\s+/g, " ").trim();
+    if (!clean) return [];
+    const parts = clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [clean];
+    return parts.map((p) => p.trim()).filter((p) => p.length > 1);
+  }
+
+  async function speakTextStreaming(text, { statusPrefix, windowId } = {}) {
     const clean = String(text || "").trim();
     if (!clean) throw new Error("Nothing to speak.");
 
     setStatus(statusPrefix || "Speaking with your system voice…");
+    const sentences = splitSentences(clean);
 
-    // Fast path: live macOS `say` — no planSpeech / WAV round-trips.
-    // Audio starts as soon as OCR text is ready.
     try {
-      await speech.speakLive(clean);
-      return;
-    } catch (error) {
-      console.warn("Live say failed, falling back:", error?.message || error);
+      // Sentence-by-sentence keeps the on-page band in sync (`say` has no word callbacks).
+      for (let i = 0; i < sentences.length; i += 1) {
+        if (speech.stopped) break;
+        const fraction = sentences.length <= 1 ? 0.08 : i / (sentences.length - 1);
+        void window.readToMe.highlightReading({ fraction });
+        setStatus(
+          `${statusPrefix || "Speaking…"} (${i + 1}/${sentences.length})`,
+        );
+        try {
+          await speech.speakLive(sentences[i]);
+        } catch (error) {
+          console.warn("Live say failed, falling back:", error?.message || error);
+          const plan = await window.readToMe.planSpeech(sentences[i]);
+          if (!plan.chunks?.length) throw error;
+          const cache = new Map();
+          const fetchChunk = (index) => {
+            if (cache.has(index)) return cache.get(index);
+            const pending = window.readToMe.synthesizeSpeechChunk(
+              plan.chunks[index],
+              plan.voice,
+            );
+            cache.set(index, pending);
+            return pending;
+          };
+          void fetchChunk(0);
+          await speech.speakStream({
+            chunkCount: plan.chunks.length,
+            async getChunk(index) {
+              if (index + 2 < plan.chunks.length) void fetchChunk(index + 2);
+              return fetchChunk(index);
+            },
+          });
+        }
+      }
+    } finally {
+      void window.readToMe.hideReadingHighlight();
     }
+  }
 
-    const plan = await window.readToMe.planSpeech(clean);
-    if (!plan.chunks?.length) throw new Error("Nothing to speak.");
-
-    const cache = new Map();
-    const fetchChunk = (index) => {
-      if (cache.has(index)) return cache.get(index);
-      const pending = window.readToMe.synthesizeSpeechChunk(
-        plan.chunks[index],
-        plan.voice,
-      );
-      cache.set(index, pending);
-      return pending;
-    };
-
-    void fetchChunk(0);
-    if (plan.chunks.length > 1) void fetchChunk(1);
-
-    await speech.speakStream({
-      chunkCount: plan.chunks.length,
-      async getChunk(index) {
-        if (index + 2 < plan.chunks.length) void fetchChunk(index + 2);
-        return fetchChunk(index);
-      },
+  async function continueAfterPage(windowId, previousText, generation, depth = 0) {
+    if (!followActive || speech.stopped) return;
+    if (generation !== followGeneration) return;
+    // Hard stop so a stuck scroll can't recurse forever.
+    if (depth >= 30) {
+      setStatus("Following the page — scroll anytime");
+      return;
+    }
+    setStatus("Scrolling to continue…");
+    const scrolled = await window.readToMe.scrollTargetWindow();
+    if (!scrolled?.ok) {
+      setStatus("Following the page — scroll anytime");
+      return;
+    }
+    await new Promise((r) => window.setTimeout(r, 900));
+    if (!followActive || speech.stopped || generation !== followGeneration) return;
+    setStatus("Reading the next section…");
+    const next = await window.readToMe.readWindowById(windowId);
+    if (!followActive || speech.stopped || generation !== followGeneration) return;
+    if (!textsDifferEnough(previousText, next.text)) {
+      setStatus("Following the page — scroll anytime");
+      return;
+    }
+    if (next.title) {
+      selected = { id: next.id || windowId, name: next.title };
+      targetLabel.textContent = next.title;
+      targetLabel.title = next.title;
+    }
+    await speakTextStreaming(next.text, {
+      statusPrefix: "Speaking…",
+      windowId: next.id || windowId,
     });
+    if (followActive && !speech.stopped && generation === followGeneration) {
+      await continueAfterPage(windowId, next.text, generation, depth + 1);
+    }
   }
 
   function startFollow(windowId, seedText) {
@@ -269,6 +319,7 @@
           try {
             await speakTextStreaming(next.text, {
               statusPrefix: "Speaking new page…",
+              windowId,
             });
             if (myCatchup !== catchupId || !followActive) return;
             setStatus("Following the page — scroll anytime");
@@ -373,14 +424,13 @@
       const windowId = result.id || selected.id;
       // Start voice first; arm follow after a beat so the baseline hash
       // isn't taken while Preview is still settling from the Read click.
-      const speakPromise = speakTextStreaming(result.text);
+      const speakPromise = speakTextStreaming(result.text, { windowId });
       window.setTimeout(() => {
         if (!speech.stopped) startFollow(windowId, result.text);
       }, 500);
       await speakPromise;
-      // If scroll-follow already stopped us mid-page, leave its status alone.
       if (followActive && !speech.stopped) {
-        setStatus("Following the page — scroll anytime");
+        await continueAfterPage(windowId, result.text, followGeneration);
       } else if (!followActive) {
         setStatus("");
       }
@@ -402,6 +452,7 @@
   stopBtn.addEventListener("click", () => {
     stopFollow();
     speech.stop();
+    void window.readToMe.hideReadingHighlight();
     reading = false;
     readBtn.disabled = false;
     applyPlaybackUi("idle");
