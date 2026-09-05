@@ -35,6 +35,8 @@
     "pickSayVoice",
     "readSystemVoiceLabel",
     "reflowForSpeech",
+    "packSentences",
+    "splitSentences",
     "chunkText"
   ],
   "mainTtsImports": [
@@ -48,9 +50,24 @@
     "resumeLiveSay",
     "warmLiveVoice"
   ],
-  "speechPublicMethods": ["arm", "speakLive", "prefetchLive", "speakStream", "pause", "resume", "stop"],
-  "speechCreateCallbacks": ["onState", "onBoundary", "onVoiceInfo"],
-  "pillSpeechCallbacks": ["onState", "onVoiceInfo"],
+  "speechPublicMethods": [
+    "arm",
+    "speakLive",
+    "prefetchLive",
+    "speakStream",
+    "pause",
+    "resume",
+    "stop"
+  ],
+  "speechCreateCallbacks": [
+    "onState",
+    "onBoundary",
+    "onVoiceInfo"
+  ],
+  "pillSpeechCallbacks": [
+    "onState",
+    "onVoiceInfo"
+  ],
   "pillDomIds": [
     "pill",
     "pickBtn",
@@ -70,5 +87,11 @@
     "browser": "browser",
     "neural": "neural"
   },
-  "readResultKeys": ["text", "title", "columns", "id", "words"]
+  "readResultKeys": [
+    "text",
+    "title",
+    "columns",
+    "id",
+    "words"
+  ]
 }

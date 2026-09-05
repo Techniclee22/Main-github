@@ -28,6 +28,8 @@
   let followFocusKey = "";
   let pendingFocusKey = "";
   let pendingFocusStable = 0;
+  /** Speculative OCR while focus debounce settles — shrinks swap lag. */
+  let pendingFocusRead = null;
   /** Prevent overlapping follow ticks (OCR can take longer than the interval). */
   let followTickBusy = false;
   /** True after focus landed on a window with no OCR text (e.g. Terminal). */
@@ -96,6 +98,7 @@
     followFocusKey = "";
     pendingFocusKey = "";
     pendingFocusStable = 0;
+    pendingFocusRead = null;
     followWaitingForReadable = false;
     followTargetId = null;
     applyPlaybackUi(
@@ -158,6 +161,40 @@
     return parts.length ? parts : [clean];
   }
 
+  /**
+   * Pack sentences into speak turns that end on a breath (sentence end).
+   * Fewer speakLive handoffs → fewer synth gaps; pauses stay natural.
+   */
+  function packUtterances(sentences, targetChars = 700, maxChars = 1200) {
+    const list = (sentences || []).map((s) => String(s || "").trim()).filter(Boolean);
+    if (!list.length) return [];
+    const packs = [];
+    let buf = [];
+    let len = 0;
+    for (const sentence of list) {
+      if (sentence.length > maxChars) {
+        if (buf.length) {
+          packs.push(buf.join(" "));
+          buf = [];
+          len = 0;
+        }
+        packs.push(sentence);
+        continue;
+      }
+      const nextLen = len + (buf.length ? 1 : 0) + sentence.length;
+      if (buf.length && nextLen > targetChars) {
+        packs.push(buf.join(" "));
+        buf = [sentence];
+        len = sentence.length;
+        continue;
+      }
+      buf.push(sentence);
+      len = nextLen;
+    }
+    if (buf.length) packs.push(buf.join(" "));
+    return packs;
+  }
+
   async function speakTextStreaming(text, { statusPrefix, windowId } = {}) {
     const clean = String(text || "").trim();
     if (!clean) throw new Error("Nothing to speak.");
@@ -169,11 +206,16 @@
     speech.arm();
 
     setStatus(statusPrefix || "Speaking with your system voice…");
-    const sentences = splitSentences(clean);
-    const total = Math.max(1, sentences.length);
+    const utterances = packUtterances(splitSentences(clean));
+    const total = Math.max(1, utterances.length);
+    // Kick synth for the first turn before the loop body so highlight/status
+    // work overlaps with Kokoro instead of sitting in front of it.
+    if (utterances[0] && speechIsCurrent(session)) {
+      speech.prefetchLive(utterances[0]);
+    }
 
     try {
-      for (let i = 0; i < sentences.length; i += 1) {
+      for (let i = 0; i < utterances.length; i += 1) {
         if (!speechIsCurrent(session)) break;
         const fraction = i / total;
         if (sourceId) {
@@ -184,22 +226,23 @@
           }
         }
         setStatus(
-          `${statusPrefix || "Speaking…"} (${i + 1}/${sentences.length})`,
+          `${statusPrefix || "Speaking…"} (${i + 1}/${utterances.length})`,
         );
         // Start speakLive first so its sync preamble can clear a stale prefetch.
         // Prefetch N+1 only after that, while N synthesizes/plays — otherwise
         // speakLive(N) throws away the warm work for N+1 and leaves a synth gap.
-        const speaking = speech.speakLive(sentences[i]);
-        if (i + 1 < sentences.length && speechIsCurrent(session)) {
-          speech.prefetchLive(sentences[i + 1]);
+        // (Turn 0 was already prefetched above and is reused here.)
+        const speaking = speech.speakLive(utterances[i]);
+        if (i + 1 < utterances.length && speechIsCurrent(session)) {
+          speech.prefetchLive(utterances[i + 1]);
         }
         try {
           await speaking;
         } catch (error) {
           if (!speechIsCurrent(session)) break;
           console.warn("Live say failed, falling back:", error?.message || error);
-          // Fall back for this sentence only (planSpeech / WAV path).
-          const plan = await window.readToMe.planSpeech(sentences[i]);
+          // Fall back for this utterance only (planSpeech / WAV path).
+          const plan = await window.readToMe.planSpeech(utterances[i]);
           if (!plan.chunks?.length) throw error;
           const cache = new Map();
           const fetchChunk = (index) => {
@@ -376,6 +419,7 @@
     pendingStable = 0;
     pendingFocusKey = "";
     pendingFocusStable = 0;
+    pendingFocusRead = null;
     const armedAt = Date.now() + FOLLOW_ARM_MS;
 
     followTimer = setInterval(() => {
@@ -404,6 +448,11 @@
             if (key !== pendingFocusKey) {
               pendingFocusKey = key;
               pendingFocusStable = 1;
+              // Start OCR immediately; confirm on the next tick so swap lag is
+              // mostly capture/OCR instead of debounce + capture/OCR.
+              pendingFocusRead = window.readToMe
+                .readActiveWindow()
+                .catch(() => null);
               return;
             }
             pendingFocusStable += 1;
@@ -415,7 +464,9 @@
             speakSession += 1;
             if (speech.speaking || speech.paused) speech.stop();
             setStatus(`Checking ${hint.app || "window"}…`);
-            const next = await window.readToMe.readActiveWindow();
+            const inFlight = pendingFocusRead;
+            pendingFocusRead = null;
+            const next = (await inFlight) || (await window.readToMe.readActiveWindow());
             if (generation !== followGeneration || !followActive) return;
 
             const switchedToReader = /preview|acrobat|adobe|skim/i.test(

@@ -42,36 +42,141 @@ function reflowForSpeech(text) {
     .trim();
 }
 
-function cutNear(rest, maxChars) {
+/**
+ * Split prose on sentence-ending punctuation. Keeps the trailing mark.
+ * Avoid lookbehind so older Electron/Chromium builds stay compatible.
+ */
+function splitSentences(text) {
+  const clean = String(text || "").replace(/\s+/g, " ").trim();
+  if (!clean) return [];
+  const parts = [];
+  let start = 0;
+  for (let i = 0; i < clean.length; i += 1) {
+    const ch = clean[i];
+    if (
+      (ch === "." || ch === "?" || ch === "!") &&
+      (i + 1 === clean.length || clean[i + 1] === " ")
+    ) {
+      const piece = clean.slice(start, i + 1).trim();
+      if (piece) parts.push(piece);
+      start = i + 1;
+    }
+  }
+  const tail = clean.slice(start).trim();
+  if (tail) parts.push(tail);
+  return parts.length ? parts : [clean];
+}
+
+/**
+ * Pack sentences into speak-sized utterances that end on a breath boundary.
+ * A single oversized sentence is only then hard-split with cutNear.
+ */
+function packSentences(sentences, targetChars = 700, maxChars = 1200) {
+  const list = (sentences || []).map((s) => String(s || "").trim()).filter(Boolean);
+  if (!list.length) return [];
+  const packs = [];
+  let buf = [];
+  let len = 0;
+  for (const sentence of list) {
+    if (sentence.length > maxChars) {
+      if (buf.length) {
+        packs.push(buf.join(" "));
+        buf = [];
+        len = 0;
+      }
+      packs.push(sentence);
+      continue;
+    }
+    const nextLen = len + (buf.length ? 1 : 0) + sentence.length;
+    if (buf.length && nextLen > targetChars) {
+      packs.push(buf.join(" "));
+      buf = [sentence];
+      len = sentence.length;
+      continue;
+    }
+    buf.push(sentence);
+    len = nextLen;
+    if (len >= maxChars) {
+      packs.push(buf.join(" "));
+      buf = [];
+      len = 0;
+    }
+  }
+  if (buf.length) packs.push(buf.join(" "));
+  return packs;
+}
+
+function cutNear(rest, maxChars, { minRatio = 0.35, weakCommaRatio = 0.72 } = {}) {
   let cut = rest.lastIndexOf(". ", maxChars);
-  if (cut < maxChars * 0.35) cut = rest.lastIndexOf("? ", maxChars);
-  if (cut < maxChars * 0.35) cut = rest.lastIndexOf("! ", maxChars);
-  if (cut < maxChars * 0.35) cut = rest.lastIndexOf("; ", maxChars);
-  if (cut < maxChars * 0.35) cut = rest.lastIndexOf(", ", maxChars);
-  if (cut < maxChars * 0.35) cut = rest.lastIndexOf(" ", maxChars);
-  if (cut < maxChars * 0.35) cut = maxChars;
-  const end = cut + (".?!;".includes(rest[cut]) ? 2 : 0);
+  if (cut < maxChars * minRatio) cut = rest.lastIndexOf("? ", maxChars);
+  if (cut < maxChars * minRatio) cut = rest.lastIndexOf("! ", maxChars);
+  // Prefer holding out for a sentence end; only then allow weaker pauses.
+  if (cut < maxChars * minRatio) cut = rest.lastIndexOf("; ", maxChars);
+  if (cut < maxChars * weakCommaRatio) cut = rest.lastIndexOf(": ", maxChars);
+  if (cut < maxChars * weakCommaRatio) cut = rest.lastIndexOf(", ", maxChars);
+  if (cut < maxChars * minRatio) cut = rest.lastIndexOf(" ", maxChars);
+  if (cut < maxChars * minRatio) cut = maxChars;
+  const end = cut + (".?!;:".includes(rest[cut]) ? 2 : 0);
   return end;
 }
 
+function hardSplit(text, maxChars, firstMaxChars) {
+  const chunks = [];
+  let rest = text;
+  let budget = firstMaxChars;
+  while (rest.length > budget) {
+    const end = cutNear(rest, budget);
+    chunks.push(rest.slice(0, end).trim());
+    rest = rest.slice(end).trim();
+    budget = maxChars;
+  }
+  if (rest) chunks.push(rest);
+  return chunks;
+}
+
+/**
+ * Chunk for TTS. Prefer whole sentences packed up to the budget so playback
+ * pauses land on breath boundaries, not mid-clause cuts.
+ */
 function chunkText(text, maxChars = 380, firstMaxChars = 220) {
   const clean = reflowForSpeech(text);
   if (!clean) return [];
   if (clean.length <= firstMaxChars) return [clean];
 
+  const sentences = splitSentences(clean);
   const chunks = [];
-  let rest = clean;
+  let budget = firstMaxChars;
+  let buf = "";
 
-  const firstEnd = cutNear(rest, firstMaxChars);
-  chunks.push(rest.slice(0, firstEnd).trim());
-  rest = rest.slice(firstEnd).trim();
+  const flush = () => {
+    if (buf) chunks.push(buf);
+    buf = "";
+    budget = maxChars;
+  };
 
-  while (rest.length > maxChars) {
-    const end = cutNear(rest, maxChars);
-    chunks.push(rest.slice(0, end).trim());
-    rest = rest.slice(end).trim();
+  for (const sentence of sentences) {
+    if (sentence.length > maxChars) {
+      flush();
+      const pieces = hardSplit(
+        sentence,
+        maxChars,
+        chunks.length === 0 ? firstMaxChars : maxChars,
+      );
+      const last = pieces.pop();
+      chunks.push(...pieces);
+      buf = last || "";
+      budget = maxChars;
+      continue;
+    }
+    const joined = buf ? `${buf} ${sentence}` : sentence;
+    if (buf && joined.length > budget) {
+      flush();
+      buf = sentence;
+    } else {
+      buf = joined;
+    }
   }
-  if (rest) chunks.push(rest);
+  flush();
   return chunks;
 }
 
@@ -130,8 +235,10 @@ const liveDeps = {
   kokoro: kokoroLive,
 };
 
-const KOKORO_PIECE_CHARS = 300;
-const KOKORO_FIRST_PIECE_CHARS = 180;
+// Stay under kokoro-worker MAX_TEXT_CHARS (2000). Prefer long pieces so
+// pauses land between sentences instead of mid-clause at ~180 chars.
+const KOKORO_PIECE_CHARS = 1200;
+const KOKORO_FIRST_PIECE_CHARS = 800;
 
 /** @type {import('child_process').ChildProcess | null} */
 let liveSayProc = null;
@@ -625,6 +732,8 @@ module.exports = {
   pickSayVoice,
   readSystemVoiceLabel,
   reflowForSpeech,
+  splitSentences,
+  packSentences,
   chunkText,
   speakLive,
   prefetchLive,

@@ -6,6 +6,8 @@ const os = require("os");
 const path = require("path");
 const {
   reflowForSpeech,
+  splitSentences,
+  packSentences,
   chunkText,
   speakLive,
   prefetchLive,
@@ -45,13 +47,37 @@ describe("chunkText", () => {
     assert.deepEqual(chunkText("Hello there."), ["Hello there."]);
   });
 
+  it("packs whole sentences up to the budget instead of cutting mid-clause", () => {
+    const text =
+      "Alpha lands on a period. Bravo keeps the thought going a bit longer. Charlie closes out.";
+    const chunks = chunkText(text, 120, 80);
+    assert.deepEqual(chunks, [
+      "Alpha lands on a period. Bravo keeps the thought going a bit longer.",
+      "Charlie closes out.",
+    ]);
+    assert.ok(chunks.every((c) => /[.?!]$/.test(c)));
+  });
+
   it("cuts the first chunk near the opening budget", () => {
     const sentence = "This is a complete sentence used for chunking. ";
     const text = sentence.repeat(20);
     const chunks = chunkText(text, 380, 220);
     assert.ok(chunks.length > 1);
     assert.ok(chunks[0].length <= 230, `first chunk ${chunks[0].length}`);
+    assert.ok(chunks.every((c) => /[.?!]$/.test(c.trim())), "breath boundaries");
     assert.equal(chunks.join(" ").replace(/\s+/g, " ").trim(), reflowForSpeech(text));
+  });
+});
+
+describe("packSentences", () => {
+  it("joins short sentences until the target breath size", () => {
+    const packs = packSentences(
+      splitSentences("One short. Two short. Three is a little longer here."),
+      40,
+      80,
+    );
+    assert.deepEqual(packs[0], "One short. Two short.");
+    assert.ok(packs.every((p) => /[.?!]$/.test(p)));
   });
 });
 
@@ -200,7 +226,7 @@ describe("speakLive engine choice", () => {
   it("pipelines the next piece while the current one plays", async () => {
     const players = fakePlayers();
     const kokoro = fakeKokoro("ready");
-    const text = "This sentence keeps going with more clauses to split. ".repeat(12);
+    const text = "This sentence keeps going with more clauses to split. ".repeat(40);
     await withLiveDeps({ spawn: players.spawn, kill: players.kill, kokoro }, async () => {
       const spoken = speakLive(text);
       let pipelined = 0;
@@ -218,7 +244,7 @@ describe("speakLive engine choice", () => {
       assert.equal(result.engine, ENGINE.KOKORO);
       assert.ok(kokoro.synths.length >= 3, `pieces: ${kokoro.synths.length}`);
       assert.equal(pipelined, kokoro.synths.length - 1, "every next piece was requested mid-play");
-      assert.ok(kokoro.synths[0].text.length <= 190, `first piece ${kokoro.synths[0].text.length}`);
+      assert.ok(kokoro.synths[0].text.length <= 820, `first piece ${kokoro.synths[0].text.length}`);
       assert.equal(
         kokoro.synths.map((s) => s.text).join(" "),
         reflowForSpeech(text),
@@ -290,7 +316,7 @@ describe("pause latch across the synth gap", () => {
   it("stop mid-play unlinks the piece already synthesized for later", async () => {
     const players = fakePlayers();
     const kokoro = fakeKokoro("ready");
-    const text = "This sentence keeps going with more clauses to split. ".repeat(12);
+    const text = "This sentence keeps going with more clauses to split. ".repeat(40);
     await withLiveDeps({ spawn: players.spawn, kill: players.kill, kokoro }, async () => {
       const spoken = speakLive(text);
       await waitFor(() => kokoro.synths.length === 1, "first synth");
