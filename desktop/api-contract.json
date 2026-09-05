@@ -63,5 +63,6 @@
     "liveMac": "macos-say-live",
     "browser": "browser",
     "neural": "neural"
-  }
+  },
+  "readResultKeys": ["text", "title", "columns", "id", "words"]
 }

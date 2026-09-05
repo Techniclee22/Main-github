@@ -46,6 +46,8 @@ let pillWindow = null;
 let highlightWindow = null;
 /** @type {import('tesseract.js').Worker | null} */
 let ocrWorker = null;
+/** @type {Promise<import('tesseract.js').Worker> | null} */
+let ocrWorkerPromise = null;
 /** @type {string | null} */
 let selectedSourceId = null;
 /** @type {{ app: string, title: string } | null} */
@@ -89,24 +91,29 @@ function installTessStderrFilter() {
 installTessStderrFilter();
 
 async function getOcrWorker() {
-  if (!ocrWorker) {
-    // OEM 1 = LSTM only (faster, fewer legacy "invalid box" warnings).
-    ocrWorker = await createWorker("eng", 1, {
-      logger: () => {},
-      errorHandler: () => {},
-    });
-    await ocrWorker.setParameters({
-      // Auto page segmentation keeps two-column order working.
-      tessedit_pageseg_mode: "3",
-      preserve_interword_spaces: "1",
-      tessedit_do_invert: "0",
-      textord_heavy_nr: "0",
-      classify_enable_learning: "0",
-      // Avoid "Estimating resolution as 105" on screen captures.
-      user_defined_dpi: "220",
+  if (!ocrWorkerPromise) {
+    ocrWorkerPromise = (async () => {
+      const worker = await createWorker("eng", 1, {
+        logger: () => {},
+        errorHandler: () => {},
+      });
+      await worker.setParameters({
+        tessedit_pageseg_mode: "3",
+        preserve_interword_spaces: "1",
+        tessedit_do_invert: "0",
+        textord_heavy_nr: "0",
+        classify_enable_learning: "0",
+        user_defined_dpi: "220",
+      });
+      ocrWorker = worker;
+      return worker;
+    })().catch((error) => {
+      ocrWorkerPromise = null;
+      ocrWorker = null;
+      throw error;
     });
   }
-  return ocrWorker;
+  return ocrWorkerPromise;
 }
 
 function createPillWindow() {
@@ -630,24 +637,32 @@ function peekVerticalProfile(image) {
 async function readWindowSource(source, { softEmpty = false } = {}) {
   selectedSourceId = source.id;
   const png = await captureWindowPng(source.id, source);
-  const { text, columns } = await ocrPng(png);
+  const layout = await ocrPng(png);
+  const text = layout.text;
+  const columns = layout.columns || 1;
+  const words = layout.words || [];
   if (!text) {
-    // softEmpty: follow focus-switch must not reject the IPC (Electron logs
-    // every handler rejection, and the pill would retry forever).
     if (softEmpty) {
       return {
         text: "",
         title: source.name,
-        columns: columns || 1,
+        columns: columns,
         id: source.id,
         empty: true,
+        words: words,
       };
     }
     throw new Error(
       "No readable text found. Zoom the PDF a bit, then try Read again.",
     );
   }
-  return { text, title: source.name, columns: columns || 1, id: source.id };
+  return {
+    text: text,
+    title: source.name,
+    columns: columns,
+    id: source.id,
+    words: words,
+  };
 }
 
 app.whenReady().then(() => {
@@ -674,8 +689,14 @@ app.on("before-quit", async () => {
   destroyHighlightWindow();
   stopFocusPolling();
   stopLiveSay();
-  if (ocrWorker) {
-    await ocrWorker.terminate();
+  if (ocrWorkerPromise) {
+    try {
+      const worker = await ocrWorkerPromise;
+      await worker.terminate();
+    } catch {
+      // ignore
+    }
+    ocrWorkerPromise = null;
     ocrWorker = null;
   }
 });

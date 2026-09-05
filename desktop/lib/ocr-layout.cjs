@@ -136,13 +136,28 @@ function splitByXMeans(words, pageWidth) {
     else right.push(word);
   }
   if (left.length < 14 || right.length < 14) return null;
+  if (gutterWordCount(words, pageWidth) > words.length * 0.15) return null;
   return [left, right];
+}
+
+function gutterWordCount(words, pageWidth) {
+  const lo = pageWidth * 0.4;
+  const hi = pageWidth * 0.6;
+  let n = 0;
+  for (const word of words) {
+    const x = wordCenterX(word);
+    if (x >= lo && x < hi) n += 1;
+  }
+  return n;
 }
 
 function clusterColumns(words, pageWidth) {
   if (!words.length) return [words];
 
   let split = findGutterSplit(words, pageWidth);
+  if (split != null && gutterWordCount(words, pageWidth) > words.length * 0.15) {
+    split = null;
+  }
   if (split != null) {
     const gutter = pageWidth * 0.025;
     const left = [];
@@ -168,11 +183,12 @@ function clusterColumns(words, pageWidth) {
   const means = splitByXMeans(words, pageWidth);
   if (means) return means;
 
-  // Last resort: mid-page split when both halves look like real columns.
-  const mid = pageWidth / 2;
-  const left = words.filter((w) => wordCenterX(w) < mid);
-  const right = words.filter((w) => wordCenterX(w) >= mid);
-  if (left.length >= 14 && right.length >= 14) return [left, right];
+  if (gutterWordCount(words, pageWidth) <= words.length * 0.08) {
+    const mid = pageWidth / 2;
+    const left = words.filter((w) => wordCenterX(w) < mid);
+    const right = words.filter((w) => wordCenterX(w) >= mid);
+    if (left.length >= 14 && right.length >= 14) return [left, right];
+  }
   return [words];
 }
 
@@ -302,6 +318,16 @@ function trimLeadingJunk(text) {
   return lines.slice(start).join("\n").trim();
 }
 
+function boxedWords(words, columnIndex) {
+  return (words || [])
+    .map((word) => ({
+      text: (word.text || "").trim(),
+      bbox: word.bbox,
+      column: columnIndex,
+    }))
+    .filter((word) => word.text && word.bbox);
+}
+
 /**
  * @param {import('tesseract.js').Page} page
  * @param {{ width?: number, height?: number }} [dims] prepared image size
@@ -324,7 +350,6 @@ function textFromOcrPage(page, dims = {}) {
     if (!isReadableWord(word)) return false;
     const box = word.bbox;
     if (!box) return false;
-    // Drop broken tess boxes — they also correlate with the C++ "Invalid box" spam.
     if (!(box.x1 > box.x0) || !(box.y1 > box.y0)) return false;
     if (box.x0 < -2 || box.y0 < -2) return false;
     if (box.x1 > pageWidth + 4 || box.y1 > pageHeight + 4) return false;
@@ -336,17 +361,18 @@ function textFromOcrPage(page, dims = {}) {
     return {
       text: sanitizeForSpeech(trimLeadingJunk((page.text || "").trim())),
       columns: 1,
+      words: boxedWords(words, 0),
     };
   }
 
   const columns = clusterColumns(words, pageWidth);
-  // Continuous prose per column (no visual line breaks), space between columns.
   const parts = columns
     .map((col) => reflowColumnProse(wordsToText(col)))
     .filter(Boolean);
   return {
     text: sanitizeForSpeech(trimLeadingJunk(parts.join(" "))),
     columns: columns.length,
+    words: columns.flatMap((col, index) => boxedWords(col, index)),
   };
 }
 

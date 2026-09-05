@@ -1,9 +1,50 @@
-<!-- BEGIN:nextjs-agent-rules -->
+# Read to Me
 
-# This is NOT the Next.js you know
+## Product
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+The product is a **Mac floating pill** in `desktop/`. It captures an open window, OCRs the page, and speaks it with live macOS `say`.
 
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+`src/` is a frozen Next.js experiment. Do not add features there unless the user asks to revive the web reader.
 
-<!-- END:nextjs-agent-rules -->
+## Before you change names
+
+The pill talks across preload, main, renderer, and TTS. Those layers must use the same method names, IPC channels, DOM ids, and engine strings.
+
+1. Edit `desktop/api-contract.json` first.
+2. Update every consumer in the same commit.
+3. Run `npm --prefix desktop run check`.
+
+Rules: `desktop/NAMING.md`. Guard: `desktop/scripts/check-api-contract.cjs`.
+
+## Commands that must stay green
+
+These run on Linux with no Electron binary and no `npm install` inside `desktop/`. CI and `.nvmrc` pin Node 22.
+
+```bash
+npm --prefix desktop run check
+```
+
+That runs the API contract check and `desktop/scripts/*.test.cjs`. `npm start` still runs only `check-api` so launch stays fast.
+
+Do not add a test that needs macOS `say`, Screen Recording, or a live Electron window unless you also add a Linux-safe skip.
+
+## Where to edit
+
+| Change | Start here |
+| --- | --- |
+| Window pick, capture, OCR, highlight, scroll | `desktop/main.cjs` |
+| Two-column reading order, quote cleanup | `desktop/lib/ocr-layout.cjs` |
+| Live `say`, chunking, neural fallback | `desktop/lib/tts.cjs` |
+| Read, Stop, and scroll-follow UI | `desktop/renderer/pill.js` |
+| Speech session state | `desktop/renderer/speech.js` |
+| IPC bridge | `desktop/preload.cjs` |
+
+## Do not
+
+- Rename `speakLive`, IPC channels, or pill DOM ids in one file only.
+- Treat `src/` as the app.
+- Point `update-and-run.sh` at a hard-coded feature branch. It fast-forwards the clone's current upstream. A dirty clone must print recovery steps, not `reset --hard` by default.
+- Describe a follow-along side panel or `speechSynthesis` as the desktop path. The desktop path is live `say` plus a reading-band overlay.
+- Start a second speak loop without bumping `speakSession`. `stopFollow()` must not bump it.
+- Assume `highlightReading({ sourceId })` or `scrollTargetWindow` honor `sourceId`. They use the frontmost external app.
+- Add another renderer cancellation flag. The next session change belongs in main.

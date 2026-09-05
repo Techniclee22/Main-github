@@ -6,9 +6,14 @@
   "main": "main.cjs",
   "scripts": {
     "check-api": "node scripts/check-api-contract.cjs",
+    "test": "node --test scripts/ocr-layout.test.cjs scripts/tts.test.cjs scripts/check-api-contract.test.cjs",
+    "check": "node scripts/check-api-contract.cjs && npm test",
     "prestart": "npm run check-api",
     "start": "electron .",
     "dev": "npm run check-api && electron ."
+  },
+  "engines": {
+    "node": ">=22"
   },
   "dependencies": {
     "electron": "^37.2.0",

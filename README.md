@@ -7,8 +7,9 @@ This is **not** a website you paste text into. It sits on top of whatever you al
 ## What you need
 
 - A **Mac** (your PDF screenshot is Preview on macOS)
-- [Node.js LTS](https://nodejs.org) installed (one-time)
+- [Node.js 22+](https://nodejs.org) installed (one-time)
 - Screen Recording permission when macOS asks (required to see other windows)
+- Accessibility permission if macOS asks (required to place the reading band and send Page Down)
 
 ## First-time setup
 
@@ -21,6 +22,18 @@ git clone https://github.com/Techniclee22/Main-github.git
 cd Main-github
 git checkout cursor/read-to-me-app-bbd6
 chmod +x update-and-run.sh run.sh
+./update-and-run.sh
+```
+
+`main` does not contain the app yet. Skip that checkout once the pill lives on `main`.
+
+If you already cloned this repo onto `cursor/read-to-me-app-bbd6`, stay there until the pill is on `main`. After that branch is deleted, switch:
+
+```bash
+cd ~/Main-github
+git fetch origin
+git checkout main
+git pull
 ./update-and-run.sh
 ```
 
@@ -73,10 +86,11 @@ Speech now starts through live macOS `say` (no waiting to render audio files), a
 
 ### Optional: cloud neural voice
 
+Read still uses live `say`. These keys are only for the unused `synthesize-speech` path.
+
 ```bash
-export OPENAI_API_KEY="sk-..."   # or AI_GATEWAY_API_KEY for Vercel AI Gateway
-cd ~/Main-github/desktop
-npm start
+export OPENAI_API_KEY="sk-..."
+# or: export AI_GATEWAY_API_KEY="..."
 ```
 
 ## Two-column PDFs
@@ -89,7 +103,7 @@ The desktop app talks across **preload → main → renderer → TTS**. Those la
 
 - Contract: [`desktop/api-contract.json`](desktop/api-contract.json)
 - Rules: [`desktop/NAMING.md`](desktop/NAMING.md)
-- Guard: `cd desktop && npm run check-api` (also runs before `npm start` / `update-and-run.sh`)
+- Guard: `cd desktop && npm run check` (contract plus unit tests). `cd desktop && npm start` still runs `check-api` first.
 
 If a rename is needed, change the contract and every consumer in **one** commit — never one file alone.
 
@@ -97,8 +111,18 @@ If a rename is needed, change the contract and every consumer in **one** commit 
 
 | Folder | Role |
 | --- | --- |
-| `desktop/` | **The product** — Electron floating pill |
-| `src/` | Earlier web experiment (secondary) |
+| `desktop/` | **The product.** Electron floating pill |
+| `src/` | Frozen web experiment. Do not extend it. |
+
+## Checks
+
+Node 22 is enough. You do not need Electron or a Mac for this.
+
+```bash
+npm --prefix desktop run check
+```
+
+That verifies IPC names and the OCR/TTS unit tests. GitHub Actions runs the same command on every pull request.
 
 ## Troubleshooting
 
@@ -107,12 +131,14 @@ If a rename is needed, change the contract and every consumer in **one** commit 
 | Voice or scroll catch-up still feels slow | Run `~/Main-github/update-and-run.sh` for the live-`say` + faster OCR build |
 | Empty window list | Open the PDF first, click Refresh in the picker |
 | “No readable text” | Zoom in on the page, make sure the text is visible, try Read again |
-| Can’t see other apps | Enable Screen Recording for the app in macOS Privacy settings |
+| Can’t see other apps | Enable Screen Recording (and Accessibility, if asked) in macOS Privacy settings |
 | Voice didn’t change after Spoken Content setting | Fully quit the app, run `say "test"` in Terminal, then `~/Main-github/update-and-run.sh` |
 | Reading pauses every line | Run `~/Main-github/update-and-run.sh` to get the latest build |
-| Voice takes a long time to start | Run `~/Main-github/update-and-run.sh` — speech now streams the first short chunk while the rest prepares |
-| Scroll doesn’t change what is read | Stay on the same window; after scrolling, wait a moment for it to settle; click Stop then Read if needed |
-| `npm` not found | Install Node.js LTS from nodejs.org, then open a **new** Terminal |
+| Voice takes a long time to start | Fully quit, then `~/Main-github/update-and-run.sh`. Live `say` should start when OCR finishes. |
+| Speech stops after a few words | Click Stop, then Read. This was the last Mac bug report and has not been retested here. |
+| Scroll doesn’t change what is read | Stay on the same window. After scrolling, wait a moment. Click Stop then Read if needed. The pill must not be stealing focus from Preview. |
+| `npm` not found | Install Node.js 22 from nodejs.org, then open a **new** Terminal |
+| Update script dies on `git pull` | The clone has local edits. The script prints stash / reset / checkout-main recovery. It does not wipe your files. |
 
 ## Architecture
 

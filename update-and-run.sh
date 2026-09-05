@@ -1,13 +1,6 @@
 #!/bin/bash
-# Update Read to Me from GitHub and start the floating pill.
-# Usage (from anywhere):
-#   ~/Main-github/update-and-run.sh
-
 set -euo pipefail
 
-BRANCH="cursor/read-to-me-app-bbd6"
-
-# Find this script's repo (works no matter where you run it from).
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$SCRIPT_DIR"
 DESKTOP_DIR="$REPO_DIR/desktop"
@@ -18,11 +11,30 @@ if [[ ! -d "$DESKTOP_DIR" ]]; then
   exit 1
 fi
 
-echo "→ Updating Read to Me ($BRANCH)…"
 cd "$REPO_DIR"
+BRANCH="$(git branch --show-current)"
+echo "→ Updating Read to Me (${BRANCH:-detached})…"
 git fetch origin
-git checkout "$BRANCH"
-git reset --hard "origin/$BRANCH"
+if git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1; then
+  if ! git pull --ff-only; then
+    echo
+    echo "Could not fast-forward this clone."
+    echo "Local edits are in the way (npm install can rewrite desktop/package-lock.json)."
+    echo
+    echo "If you have work you want to keep:"
+    echo "  git stash -u && git pull --ff-only"
+    echo
+    echo "If you just want the latest from GitHub on this branch:"
+    echo "  git fetch origin && git reset --hard origin/${BRANCH:-HEAD}"
+    echo
+    echo "If the app has moved onto main and this clone is still on an old feature branch:"
+    echo "  git fetch origin && git checkout main && git pull"
+    echo
+    exit 1
+  fi
+else
+  echo "No upstream for this clone. Using the files already on disk."
+fi
 
 echo "→ Installing dependencies…"
 cd "$DESKTOP_DIR"

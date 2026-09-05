@@ -53,9 +53,6 @@ function cutNear(rest, maxChars) {
   return end;
 }
 
-/**
- * Chunking kept for file/neural fallbacks. Live `say` speaks the full page.
- */
 function chunkText(text, maxChars = 380, firstMaxChars = 220) {
   const clean = reflowForSpeech(text);
   if (!clean) return [];
@@ -136,11 +133,10 @@ let liveSayGeneration = 0;
 /** @type {string | null} */
 let liveSayTempFile = null;
 
-function cleanupLiveSayTemp() {
-  if (!liveSayTempFile) return;
-  const file = liveSayTempFile;
-  liveSayTempFile = null;
-  void fs.promises.unlink(file).catch(() => {});
+function unlinkOwnedSayFile(ownedFile) {
+  if (!ownedFile) return;
+  if (liveSayTempFile === ownedFile) liveSayTempFile = null;
+  void fs.promises.unlink(ownedFile).catch(() => {});
 }
 
 function stopLiveSay() {
@@ -148,6 +144,8 @@ function stopLiveSay() {
   liveSayPaused = false;
   const proc = liveSayProc;
   liveSayProc = null;
+  const ownedFile = liveSayTempFile;
+  liveSayTempFile = null;
   if (proc && !proc.killed) {
     try {
       try {
@@ -160,7 +158,7 @@ function stopLiveSay() {
       // ignore
     }
   }
-  cleanupLiveSayTemp();
+  unlinkOwnedSayFile(ownedFile);
 }
 
 function pauseLiveSay() {
@@ -201,10 +199,19 @@ async function speakLive(text) {
     `read-to-me-live-${process.pid}-${Date.now()}.txt`,
   );
   await fs.promises.writeFile(file, clean, "utf8");
+  if (generation !== liveSayGeneration) {
+    unlinkOwnedSayFile(file);
+    return {
+      ok: true,
+      interrupted: true,
+      engine: "macos-say-live",
+      voice: "System voice",
+      text: clean,
+      wordCount: clean.split(/\s+/).filter(Boolean).length,
+    };
+  }
   liveSayTempFile = file;
 
-  // On macOS: start `say` immediately (system Spoken Content voice).
-  // Don't block first audio on defaults/voice lookup.
   const voicePromise =
     process.platform === "darwin"
       ? pickSayVoice().catch(() => ({ voice: "System voice" }))
@@ -218,7 +225,7 @@ async function speakLive(text) {
 
   await new Promise((resolve, reject) => {
     if (generation !== liveSayGeneration) {
-      cleanupLiveSayTemp();
+      unlinkOwnedSayFile(file);
       resolve({ ok: true, interrupted: true });
       return;
     }
@@ -230,14 +237,16 @@ async function speakLive(text) {
     proc.on("error", (error) => {
       if (liveSayProc === proc) liveSayProc = null;
       liveSayPaused = false;
-      cleanupLiveSayTemp();
+      unlinkOwnedSayFile(file);
       reject(error);
     });
 
     proc.on("close", () => {
-      if (liveSayProc === proc) liveSayProc = null;
-      liveSayPaused = false;
-      cleanupLiveSayTemp();
+      if (liveSayProc === proc) {
+        liveSayProc = null;
+        liveSayPaused = false;
+      }
+      unlinkOwnedSayFile(file);
       resolve({
         ok: true,
         interrupted: generation !== liveSayGeneration,
@@ -268,7 +277,6 @@ async function planSpeech(text) {
   return {
     engine: live ? "macos-say-live" : "browser",
     voice: voiceChoice.voice,
-    // Live path speaks the full page in one shot.
     chunks: live ? [clean] : chunkText(clean),
     text: clean,
     wordCount: clean.split(/\s+/).filter(Boolean).length,
