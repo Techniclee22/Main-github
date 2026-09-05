@@ -25,9 +25,6 @@ function forceSayRequested(env = process.env) {
   return Boolean(env[FORCE_SAY_ENV]);
 }
 
-/**
- * @param {"cold" | "warming" | "ready" | "unavailable"} state
- */
 function selectVoice(state, { forceSay = false, platform = process.platform } = {}) {
   if (platform !== "darwin" || forceSay || state !== "ready") return ENGINE.SAY;
   return ENGINE.KOKORO;
@@ -74,14 +71,10 @@ function createKokoroSupervisor({
   synthTimeoutMs = SYNTH_TIMEOUT_MS,
   warn = (message) => console.warn(message),
 } = {}) {
-  /** @type {"cold" | "warming" | "ready" | "unavailable"} */
   let state = "cold";
-  /** @type {string | null} */
   let reason = null;
-  /** @type {import("child_process").ChildProcess | null} */
   let proc = null;
   let nextId = 1;
-  /** @type {Map<number, { resolve: (reply: object) => void, timer: NodeJS.Timeout | null }>} */
   const pending = new Map();
 
   function kokoroStatus() {
@@ -107,9 +100,7 @@ function createKokoroSupervisor({
       try {
         dying.stdin?.end();
         dying.kill();
-      } catch {
-        // already gone
-      }
+      } catch {}
     }
     if (wasLive) warn(`Kokoro unavailable (${why}); Read uses say.`);
   }

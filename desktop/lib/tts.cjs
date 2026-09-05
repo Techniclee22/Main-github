@@ -140,7 +140,6 @@ let liveSayGeneration = 0;
 /** @type {string | null} */
 let liveSayTempFile = null;
 let liveSpeakActive = false;
-/** @type {(() => void) | null} */
 let liveSayWake = null;
 
 function unlinkOwnedSayFile(ownedFile) {
@@ -153,9 +152,7 @@ function signalLiveProc(signal) {
   if (!liveSayProc?.pid) return;
   try {
     liveDeps.kill(liveSayProc.pid, signal);
-  } catch {
-    // child already exited
-  }
+  } catch {}
 }
 
 function wakeLiveGate() {
@@ -182,10 +179,6 @@ function stopLiveSay() {
   wakeLiveGate();
 }
 
-/**
- * Pause the live utterance. Also latches while no child exists yet (Kokoro
- * is still synthesizing), so the next piece waits instead of starting.
- */
 function pauseLiveSay() {
   if (!liveSpeakActive || liveSayPaused) return false;
   liveSayPaused = true;
@@ -252,9 +245,6 @@ function discardSynth(pending) {
   pending.then((wav) => unlinkOwnedSayFile(wav), () => {});
 }
 
-/**
- * @returns {Promise<{ spoke: true, interrupted: boolean } | { spoke: false, rest: string }>}
- */
 async function speakWithKokoro(clean, generation) {
   const isCurrent = () => generation === liveSayGeneration;
   const pieces = chunkText(clean, KOKORO_PIECE_CHARS, KOKORO_FIRST_PIECE_CHARS);

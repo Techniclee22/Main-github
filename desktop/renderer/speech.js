@@ -347,7 +347,6 @@
         },
         /**
          * Speak immediately through main's live engine (no WAV render wait).
-         * Main reports which engine spoke; this layer never names one.
          */
         async speakLive(text) {
           if (stopped) return;

@@ -25,7 +25,6 @@ const SAMPLE_RATE = 24000;
 const MAX_TEXT_CHARS = 2000;
 const USER_MODULES_ROOT = path.join(os.homedir(), ".read-to-me");
 
-/** @type {import("kokoro-js").KokoroTTS | null} */
 let tts = null;
 
 function reply(message) {
@@ -97,7 +96,6 @@ async function warm() {
   return { ok: true, sampleRate: SAMPLE_RATE };
 }
 
-// kokoro-js saves IEEE-float WAV. afplay on macOS wants integer PCM.
 function writePcm16Wav(floatSamples, sampleRate, outPath) {
   const samples = floatSamples.length;
   const dataSize = samples * 2;
