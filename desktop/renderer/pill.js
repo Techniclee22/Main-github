@@ -87,7 +87,9 @@
     followActive = false;
     followGeneration += 1;
     followCatchupId += 1;
-    speakSession += 1;
+    // Do NOT bump speakSession or hide the highlight here — startFollow()
+    // calls stopFollow() ~500ms into Read to arm scroll-follow, and
+    // invalidating the session was aborting speech after the first sentence.
     followTickBusy = false;
     if (followTimer) {
       clearInterval(followTimer);
@@ -101,10 +103,17 @@
     pendingFocusStable = 0;
     followWaitingForReadable = false;
     followTargetId = null;
-    void window.readToMe.hideReadingHighlight();
     applyPlaybackUi(
       speech.speaking ? "speaking" : speech.paused ? "paused" : "idle",
     );
+  }
+
+  /** Hard-cancel follow + speech (Stop button / fatal Read errors). */
+  function stopAll() {
+    speakSession += 1;
+    stopFollow();
+    speech.stop();
+    void window.readToMe.hideReadingHighlight();
   }
 
   function speechIsCurrent(session) {
@@ -617,8 +626,7 @@
   readBtn.addEventListener("click", async () => {
     reading = true;
     readBtn.disabled = true;
-    stopFollow();
-    speech.stop();
+    stopAll();
     if (pickerOpen) {
       pickerOpen = false;
       picker.hidden = true;
@@ -667,7 +675,7 @@
         setStatus("");
       }
     } catch (error) {
-      stopFollow();
+      stopAll();
       setStatus(error?.message || "Could not read that window");
       applyPlaybackUi("idle");
     } finally {
@@ -682,9 +690,7 @@
   pauseBtn.addEventListener("click", () => speech.pause());
   resumeBtn.addEventListener("click", () => speech.resume());
   stopBtn.addEventListener("click", () => {
-    stopFollow();
-    speech.stop();
-    void window.readToMe.hideReadingHighlight();
+    stopAll();
     reading = false;
     readBtn.disabled = false;
     applyPlaybackUi("idle");
