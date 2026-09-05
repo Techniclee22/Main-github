@@ -8,6 +8,7 @@ const {
   reflowForSpeech,
   chunkText,
   speakLive,
+  prefetchLive,
   stopLiveSay,
   pauseLiveSay,
   resumeLiveSay,
@@ -254,9 +255,9 @@ describe("pause latch across the synth gap", () => {
       const player = players.spawned[0];
 
       assert.equal(pauseLiveSay(), true);
-      assert.deepEqual(players.signals, [{ pid: player.pid, signal: "SIGSTOP" }]);
+      assert.deepEqual(players.signals, [{ pid: -player.pid, signal: "SIGSTOP" }]);
       assert.equal(resumeLiveSay(), true);
-      assert.deepEqual(players.signals[1], { pid: player.pid, signal: "SIGCONT" });
+      assert.deepEqual(players.signals[1], { pid: -player.pid, signal: "SIGCONT" });
 
       player.finish();
       assert.equal((await spoken).engine, ENGINE.KOKORO);
@@ -325,6 +326,47 @@ describe("pause latch across the synth gap", () => {
       assert.equal(result.interrupted, true);
       assert.equal(players.spawned.length, 0);
       await waitFor(() => !fs.existsSync(wav), "paused wav unlinked");
+    });
+  });
+});
+
+describe("prefetchLive", () => {
+  it("hides the next-sentence synth wait when prefetch matches", async () => {
+    const players = fakePlayers();
+    const kokoro = fakeKokoro("ready");
+    await withLiveDeps({ spawn: players.spawn, kill: players.kill, kokoro }, async () => {
+      assert.equal(prefetchLive("Next sentence.").ok, true);
+      await waitFor(() => kokoro.synths.length === 1, "prefetch synth");
+      assert.equal(kokoro.synths[0].text, "Next sentence.");
+      const wav = tempWav("prefetch");
+      kokoro.synths[0].resolve(wav);
+
+      const spoken = speakLive("Next sentence.");
+      await waitFor(() => players.spawned.length === 1, "afplay without a second synth");
+      assert.equal(kokoro.synths.length, 1, "speakLive reused the prefetch synth");
+      assert.equal(players.spawned[0].command, "afplay");
+      players.spawned[0].finish();
+      assert.equal((await spoken).engine, ENGINE.KOKORO);
+    });
+  });
+
+  it("stopLiveSay drops a pending prefetch", async () => {
+    const players = fakePlayers();
+    const kokoro = fakeKokoro("ready");
+    await withLiveDeps({ spawn: players.spawn, kill: players.kill, kokoro }, async () => {
+      prefetchLive("Abandoned.");
+      await waitFor(() => kokoro.synths.length === 1, "prefetch synth");
+      const wav = tempWav("abandon");
+      stopLiveSay();
+      kokoro.synths[0].resolve(wav);
+      await waitFor(() => !fs.existsSync(wav), "prefetch wav unlinked");
+
+      const spoken = speakLive("Abandoned.");
+      await waitFor(() => kokoro.synths.length === 2, "fresh synth after stop");
+      kokoro.synths[1].resolve(tempWav("fresh"));
+      await waitFor(() => players.spawned.length === 1, "afplay");
+      players.spawned[0].finish();
+      await spoken;
     });
   });
 });

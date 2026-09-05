@@ -373,6 +373,14 @@
             }
           }
         },
+        /**
+         * Warm the next sentence while the current one plays so Kokoro does
+         * not leave a synth-sized gap between sentences.
+         */
+        prefetchLive(text) {
+          if (stopped) return;
+          void window.readToMe.prefetchLive(text);
+        },
         async pause() {
           if (liveMode) {
             const res = await window.readToMe.pauseLiveSay();

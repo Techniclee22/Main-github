@@ -186,6 +186,9 @@
         setStatus(
           `${statusPrefix || "Speaking…"} (${i + 1}/${sentences.length})`,
         );
+        if (i + 1 < sentences.length && speechIsCurrent(session)) {
+          speech.prefetchLive(sentences[i + 1]);
+        }
         try {
           await speech.speakLive(sentences[i]);
         } catch (error) {

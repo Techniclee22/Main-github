@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("readToMe", {
   synthesizeSpeechChunk: (chunk, voice) =>
     ipcRenderer.invoke("synthesize-speech-chunk", chunk, voice),
   speakLive: (text) => ipcRenderer.invoke("speak-live", text),
+  prefetchLive: (text) => ipcRenderer.invoke("prefetch-live", text),
   stopLiveSay: () => ipcRenderer.invoke("stop-live-say"),
   pauseLiveSay: () => ipcRenderer.invoke("pause-live-say"),
   resumeLiveSay: () => ipcRenderer.invoke("resume-live-say"),

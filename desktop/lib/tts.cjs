@@ -141,6 +141,9 @@ let liveSayGeneration = 0;
 let liveSayTempFile = null;
 let liveSpeakActive = false;
 let liveSayWake = null;
+/** @type {{ text: string, pieces: string[], pending: Promise<string>, token: number } | null} */
+let livePrefetch = null;
+let livePrefetchToken = 0;
 
 function unlinkOwnedSayFile(ownedFile) {
   if (!ownedFile) return;
@@ -150,9 +153,15 @@ function unlinkOwnedSayFile(ownedFile) {
 
 function signalLiveProc(signal) {
   if (!liveSayProc?.pid) return;
+  // afplay is spawned in its own process group so Stop/Pause reach the player,
+  // not only a parent shell wrapper.
   try {
-    liveDeps.kill(liveSayProc.pid, signal);
-  } catch {}
+    liveDeps.kill(-liveSayProc.pid, signal);
+  } catch {
+    try {
+      liveDeps.kill(liveSayProc.pid, signal);
+    } catch {}
+  }
 }
 
 function wakeLiveGate() {
@@ -161,7 +170,15 @@ function wakeLiveGate() {
   if (wake) wake();
 }
 
-function stopLiveSay() {
+function clearLivePrefetch() {
+  if (!livePrefetch) return;
+  const pending = livePrefetch.pending;
+  livePrefetch = null;
+  livePrefetchToken += 1;
+  discardSynth(pending);
+}
+
+function stopLivePlayer() {
   liveSayGeneration += 1;
   liveSayPaused = false;
   liveSpeakActive = false;
@@ -170,6 +187,7 @@ function stopLiveSay() {
   liveSayTempFile = null;
   if (proc && !proc.killed) {
     signalLiveProc("SIGCONT");
+    signalLiveProc("SIGKILL");
     try {
       proc.kill("SIGKILL");
     } catch {}
@@ -177,6 +195,11 @@ function stopLiveSay() {
   liveSayProc = null;
   unlinkOwnedSayFile(ownedFile);
   wakeLiveGate();
+}
+
+function stopLiveSay() {
+  stopLivePlayer();
+  clearLivePrefetch();
 }
 
 function pauseLiveSay() {
@@ -215,7 +238,10 @@ async function playInSeat(command, args, ownedFile, generation) {
       return;
     }
 
-    const proc = liveDeps.spawn(command, args, { stdio: "ignore" });
+    const proc = liveDeps.spawn(command, args, {
+      stdio: "ignore",
+      detached: true,
+    });
     liveSayProc = proc;
     liveSayTempFile = ownedFile;
     if (liveSayPaused) signalLiveProc("SIGSTOP");
@@ -245,10 +271,56 @@ function discardSynth(pending) {
   pending.then((wav) => unlinkOwnedSayFile(wav), () => {});
 }
 
-async function speakWithKokoro(clean, generation) {
-  const isCurrent = () => generation === liveSayGeneration;
+function takeLivePrefetch(clean) {
+  if (!livePrefetch || livePrefetch.text !== clean) return null;
+  const slot = livePrefetch;
+  livePrefetch = null;
+  return slot;
+}
+
+/**
+ * Start synthesizing the next sentence while the current one plays.
+ * speakLive reuses a matching prefetch so the gap between sentences is not
+ * a full Kokoro synth wait.
+ */
+function prefetchLive(text) {
+  const clean = reflowForSpeech(text);
+  if (!clean) return { ok: false };
+
+  const { kokoro, platform } = liveDeps;
+  kokoro.warmLiveVoice();
+  if (
+    selectVoice(kokoro.kokoroStatus().state, {
+      forceSay: forceSayRequested(),
+      platform,
+    }) !== ENGINE.KOKORO
+  ) {
+    return { ok: false };
+  }
+  if (livePrefetch?.text === clean) return { ok: true };
+
+  clearLivePrefetch();
+  const token = (livePrefetchToken += 1);
   const pieces = chunkText(clean, KOKORO_PIECE_CHARS, KOKORO_FIRST_PIECE_CHARS);
-  let pending = startSynth(pieces[0], isCurrent);
+  const pending = startSynth(pieces[0], () => livePrefetchToken === token);
+  livePrefetch = { text: clean, pieces, pending, token };
+  return { ok: true };
+}
+
+async function speakWithKokoro(clean, generation, reused = null) {
+  const isCurrent = () => generation === liveSayGeneration;
+  const pieces = reused?.pieces || chunkText(clean, KOKORO_PIECE_CHARS, KOKORO_FIRST_PIECE_CHARS);
+  let pending = reused
+    ? reused.pending.then((wav) => {
+        if (!isCurrent()) {
+          unlinkOwnedSayFile(wav);
+          const error = new Error("interrupted");
+          error.code = "interrupted";
+          throw error;
+        }
+        return wav;
+      })
+    : startSynth(pieces[0], isCurrent);
 
   try {
     for (let i = 0; i < pieces.length; i += 1) {
@@ -257,7 +329,9 @@ async function speakWithKokoro(clean, generation) {
         wav = await pending;
       } catch (error) {
         pending = null;
-        if (!isCurrent()) return { spoke: true, interrupted: true };
+        if (!isCurrent() || error.code === "interrupted") {
+          return { spoke: true, interrupted: true };
+        }
         console.warn(`Kokoro synth failed (${error.code || error.message}); using say.`);
         return { spoke: false, rest: pieces.slice(i).join(" ") };
       }
@@ -316,7 +390,9 @@ async function speakLive(text) {
   const clean = reflowForSpeech(text);
   if (!clean) throw new Error("Nothing to speak.");
 
-  stopLiveSay();
+  const reused = takeLivePrefetch(clean);
+  stopLivePlayer();
+  if (!reused) clearLivePrefetch();
   const generation = liveSayGeneration;
   liveSpeakActive = true;
   const { kokoro, platform } = liveDeps;
@@ -339,11 +415,13 @@ async function speakLive(text) {
       platform,
     });
     if (engine === ENGINE.KOKORO) {
-      const outcome = await speakWithKokoro(clean, generation);
+      const outcome = await speakWithKokoro(clean, generation, reused);
       if (outcome.spoke) {
         return spoken(ENGINE.KOKORO, KOKORO_VOICE_LABEL, outcome.interrupted);
       }
       rest = outcome.rest;
+    } else if (reused) {
+      discardSynth(reused.pending);
     }
 
     const voicePromise =
@@ -516,6 +594,7 @@ module.exports = {
   reflowForSpeech,
   chunkText,
   speakLive,
+  prefetchLive,
   stopLiveSay,
   pauseLiveSay,
   resumeLiveSay,

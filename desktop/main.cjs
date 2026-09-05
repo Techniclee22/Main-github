@@ -20,6 +20,7 @@ const {
   synthesizeSpeechChunk,
   planSpeech,
   speakLive,
+  prefetchLive,
   stopLiveSay,
   pauseLiveSay,
   resumeLiveSay,
@@ -761,6 +762,10 @@ ipcMain.handle("synthesize-speech-chunk", async (_event, chunk, voice) => {
 
 ipcMain.handle("speak-live", async (_event, text) => {
   return speakLive(text);
+});
+
+ipcMain.handle("prefetch-live", async (_event, text) => {
+  return prefetchLive(text);
 });
 
 ipcMain.handle("stop-live-say", async () => {

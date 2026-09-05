@@ -210,7 +210,7 @@ function collectContractErrors(overrides = {}) {
       errors.push(`speech.js: missing public method \`${name}\``);
     }
   }
-  for (const name of ["speakLive", "speakStream", "stop"]) {
+  for (const name of ["speakLive", "prefetchLive", "speakStream", "stop"]) {
     assertIncludes(
       errors,
       `pill.js uses speech.${name}`,
