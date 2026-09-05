@@ -34,4 +34,27 @@ describe("pickSource", () => {
     );
     assert.equal(picked.id, "term");
   });
+
+  it("does not keep a Preview window whose name has no .pdf suffix", () => {
+    const picked = pickSource(
+      [
+        { id: "pdf", name: "Mistborn" },
+        { id: "chrome", name: "Inbox - Gmail" },
+        { id: "term", name: "Main-github — -zsh — 81×30" },
+      ],
+      { app: "Terminal", title: "missing value" },
+    );
+    assert.equal(picked && picked.id, "term");
+  });
+
+  it("returns null instead of a PDF when Terminal is focused and no tab matches", () => {
+    const picked = pickSource(
+      [
+        { id: "pdf", name: "Mistborn.pdf" },
+        { id: "chrome", name: "Inbox - Gmail" },
+      ],
+      { app: "Terminal", title: "Main-github — -zsh — 81×30" },
+    );
+    assert.equal(picked, null);
+  });
 });

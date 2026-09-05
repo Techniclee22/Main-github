@@ -35,6 +35,33 @@ function titlesOverlap(a, b) {
   return hit >= Math.min(2, rightTokens.length) && hit / rightTokens.length >= 0.5;
 }
 
+function isReadingApp(app) {
+  return /preview|acrobat|adobe|skim/i.test(String(app || ""));
+}
+
+function isTerminalApp(app) {
+  return /^(terminal|iterm2?|alacritty|kitty|warp|ghostty|console)$/i.test(
+    String(app || "").trim(),
+  );
+}
+
+function belongsToFocus(win, focus, appWindowTitles = []) {
+  if (!focus?.app) return true;
+  const name = win.name || "";
+  if (focus.title && titlesOverlap(name, focus.title)) return true;
+  for (const title of appWindowTitles) {
+    if (titlesOverlap(name, title)) return true;
+  }
+  const app = normalizeTitle(focus.app);
+  const lower = normalizeTitle(name);
+  if (app && lower === app) return true;
+  if (app.length >= 4 && lower.includes(app)) return true;
+  if (isTerminalApp(focus.app) && /\b(zsh|bash|fish|sh|nu)\b/i.test(name)) {
+    return true;
+  }
+  return false;
+}
+
 function scoreWindowCandidate(win, focus, appWindowTitles = []) {
   const name = win.name || "";
   let score = 0;
@@ -48,15 +75,12 @@ function scoreWindowCandidate(win, focus, appWindowTitles = []) {
   }
 
   if (focus?.app) {
-    const app = focus.app.toLowerCase();
-    const lower = name.toLowerCase();
-    if (lower.includes(app) || app.includes(lower)) score += 80;
-    const readingApp =
-      /preview|acrobat|adobe/.test(app) || /\.pdf\b/.test(app);
-    if (readingApp && /\.pdf\b/.test(lower)) score += 40;
-    if (!readingApp && /\.pdf\b/.test(lower) && !titlesOverlap(name, focus.title)) {
-      score -= 60;
+    const app = normalizeTitle(focus.app);
+    const lower = normalizeTitle(name);
+    if (app && (lower === app || (app.length >= 4 && lower.includes(app)))) {
+      score += 80;
     }
+    if (isReadingApp(focus.app) && /\.pdf\b/.test(lower)) score += 40;
     return score;
   }
 
@@ -67,7 +91,11 @@ function scoreWindowCandidate(win, focus, appWindowTitles = []) {
 
 function pickSource(sources, focus, appWindowTitles = []) {
   if (!sources?.length) return null;
-  const ranked = [...sources].sort(
+  const pool = focus?.app
+    ? sources.filter((win) => belongsToFocus(win, focus, appWindowTitles))
+    : sources;
+  if (!pool.length) return null;
+  const ranked = [...pool].sort(
     (a, b) =>
       scoreWindowCandidate(b, focus, appWindowTitles) -
       scoreWindowCandidate(a, focus, appWindowTitles),
@@ -78,6 +106,8 @@ function pickSource(sources, focus, appWindowTitles = []) {
 module.exports = {
   normalizeTitle,
   titlesOverlap,
-  scoreWindowCandidate,
+  belongsToFocus,
+  isReadingApp,
   pickSource,
+  scoreWindowCandidate,
 };

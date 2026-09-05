@@ -438,7 +438,7 @@ async function resolveTargetWindow(preferredId) {
   const appTitles = lastExternalFocus?.app
     ? await listAppWindowTitles(lastExternalFocus.app)
     : [];
-  return pickSource(usable, lastExternalFocus, appTitles) || usable[0];
+  return pickSource(usable, lastExternalFocus, appTitles);
 }
 
 /**
@@ -722,13 +722,27 @@ ipcMain.handle("get-focus-hint", async () => refreshFrontmost());
 
 ipcMain.handle("read-selected-window", async () => {
   const source = await resolveTargetWindow(selectedSourceId);
+  if (!source) {
+    throw new Error(
+      "No readable window found. Click the window, then try Read again.",
+    );
+  }
   return readWindowSource(source);
 });
 
 ipcMain.handle("read-active-window", async () => {
   await refreshFrontmost();
   const source = await resolveTargetWindow(null);
-  // Soft-empty so Terminal/focus-switch OCR failures don't spam the main log.
+  if (!source) {
+    return {
+      text: "",
+      title: lastExternalFocus?.app || "",
+      columns: 1,
+      id: null,
+      empty: true,
+      words: [],
+    };
+  }
   return readWindowSource(source, { softEmpty: true });
 });
 

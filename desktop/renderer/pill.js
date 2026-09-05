@@ -387,19 +387,27 @@
 
             pendingFocusKey = "";
             pendingFocusStable = 0;
-            // OCR first while the old page can keep speaking. Only stop/switch
-            // when the new window has readable text — otherwise adopt the focus
-            // key once so Terminal doesn't spam OCR every 250ms.
+            followCatchupId += 1;
+            speakSession += 1;
+            if (speech.speaking || speech.paused) speech.stop();
             setStatus(`Checking ${hint.app || "window"}…`);
             const next = await window.readToMe.readActiveWindow();
             if (generation !== followGeneration || !followActive) return;
 
-            if (!next?.text?.trim() || next.empty) {
+            const switchedToReader = /preview|acrobat|adobe|skim/i.test(
+              hint.app || "",
+            );
+            const nextLooksLikePdf = /\.pdf\b/i.test(next?.title || "");
+            const stayedOnOldWindow =
+              Boolean(next?.id && followedId && next.id === followedId);
+            const unusable =
+              !next?.text?.trim() ||
+              next.empty ||
+              (!switchedToReader && (nextLooksLikePdf || stayedOnOldWindow));
+
+            if (unusable) {
               followFocusKey = key;
               followWaitingForReadable = true;
-              followCatchupId += 1;
-              speakSession += 1;
-              if (speech.speaking || speech.paused) speech.stop();
               void window.readToMe.hideReadingHighlight();
               setStatus(
                 `Can't read ${hint.app || "that window"} — switch back to continue`,
@@ -407,8 +415,6 @@
               return;
             }
 
-            followCatchupId += 1;
-            if (speech.speaking || speech.paused) speech.stop();
             followFocusKey = key;
             followWaitingForReadable = false;
             followedId = next.id || followedId;

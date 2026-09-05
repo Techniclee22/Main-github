@@ -92,7 +92,7 @@ OCR layout returns word boxes on the read payload (`words`) so a later band can 
 
 Two-column split requires a gap between left-column box edges and right-column box edges. A busy page-center band is not enough to refuse a split.
 
-Electron `source.name` is the window title. Terminal tabs look like `Main-github — -zsh — 81×30`, not `Terminal`. Match the focused app's window titles, not the process name substring.
+Electron `source.name` is the window title. Terminal tabs look like `Main-github — -zsh — 81×30`, not `Terminal`. Only pick a source that belongs to the focused app. A Preview window with no `.pdf` suffix must not win ties when Terminal is frontmost.
 
 Dark captures (Terminal) invert before OCR. Peek flicker on a dark UI is not a page scroll and must not stop `say`.
 
