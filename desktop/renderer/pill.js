@@ -41,16 +41,11 @@
   /** Window id follow is currently reading — blocks stale continue-after-page. */
   let followTargetId = null;
 
-  // Real scroll only after ~1/4 of the viewport has moved.
   const SCROLL_MOVE_FRACTION = 0.25;
-  // Closer than this is Retina flicker / scrollbar noise.
   const SCROLL_STILL_FRACTION = 0.06;
-  // Mean luminance mismatch (0–255) that means a different page, not a shift.
-  const SCROLL_UNRELATED_SAD = 35;
-  // Ignore Preview settle noise after Read before trusting the baseline.
   const FOLLOW_ARM_MS = 2000;
-  // Consecutive still peeks (~250ms each) before OCR catch-up.
   const FOLLOW_SETTLE_PEEKS = 3;
+  const { scrollFraction } = window.ReadToMeFollowPeek;
 
   const speech = window.ReadToMeSpeech.create({
     onState(state) {
@@ -118,35 +113,6 @@
 
   function speechIsCurrent(session) {
     return session === speakSession && !speech.stopped;
-  }
-
-  function scrollFraction(a, b) {
-    if (!a?.length || !b?.length || a.length !== b.length) return 1;
-    const h = a.length;
-    let bestShift = 0;
-    let bestSad = Infinity;
-    const maxShift = Math.floor(h * 0.7);
-    for (let shift = -maxShift; shift <= maxShift; shift += 1) {
-      let sad = 0;
-      let n = 0;
-      for (let y = 0; y < h; y += 1) {
-        const y2 = y - shift;
-        if (y2 < 0 || y2 >= h) continue;
-        sad += Math.abs(a[y2] - b[y]);
-        n += 1;
-      }
-      if (n < h * 0.35) continue;
-      const avg = sad / n;
-      if (avg < bestSad) {
-        bestSad = avg;
-        bestShift = Math.abs(shift);
-      }
-    }
-    let raw = 0;
-    for (let i = 0; i < h; i += 1) raw += Math.abs(a[i] - b[i]);
-    raw /= h;
-    if (bestSad > SCROLL_UNRELATED_SAD && raw > SCROLL_UNRELATED_SAD) return 1;
-    return bestShift / h;
   }
 
   function textFingerprint(text) {

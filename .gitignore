@@ -11,8 +11,8 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
+# tesseract language data downloaded next to the Electron app
+/desktop/*.traineddata
 
 # next.js
 /.next/
