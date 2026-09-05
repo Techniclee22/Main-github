@@ -20,9 +20,11 @@ const {
   synthesizeSpeechChunk,
   planSpeech,
   speakLive,
+  prefetchLive,
   stopLiveSay,
   pauseLiveSay,
   resumeLiveSay,
+  warmLiveVoice,
 } = require("./lib/tts.cjs");
 
 const execFileAsync = promisify(execFile);
@@ -676,10 +678,10 @@ async function readWindowSource(source, { softEmpty = false } = {}) {
 app.whenReady().then(() => {
   createPillWindow();
   startFocusPolling();
-  // Warm OCR (and macOS speech) so the first Read isn't paying cold-start.
   void getOcrWorker().catch((error) => {
     console.warn("OCR warm-up failed:", error?.message || error);
   });
+  warmLiveVoice();
   if (process.platform === "darwin") {
     void execFileAsync("say", ["-r", "200", " "]).catch(() => {});
   }
@@ -758,12 +760,16 @@ ipcMain.handle("synthesize-speech-chunk", async (_event, chunk, voice) => {
   return synthesizeSpeechChunk(chunk, voice);
 });
 
-ipcMain.handle("speak-live", async (_event, text) => {
-  return speakLive(text);
+ipcMain.handle("speak-live", async (_event, text, options) => {
+  return speakLive(text, options || {});
 });
 
-ipcMain.handle("stop-live-say", async () => {
-  stopLiveSay();
+ipcMain.handle("prefetch-live", async (_event, text) => {
+  return prefetchLive(text);
+});
+
+ipcMain.handle("stop-live-say", async (_event, options) => {
+  stopLiveSay(options || {});
   return { ok: true };
 });
 

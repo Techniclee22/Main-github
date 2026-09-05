@@ -67,9 +67,21 @@ Optional: the window button (▣) lets you force a specific window if auto-pick 
 
 ## Natural English voice
 
-The app uses the **same voice as Terminal** `say "…"` — your Mac Spoken Content / system voice.
+Read speaks with **Kokoro** (the `af_heart` voice of an 82M-parameter model that runs on your Mac) once the local model is loaded. Until then, and whenever Kokoro is missing or fails, it speaks with the **same voice as Terminal** `say "…"`, your Mac Spoken Content / system voice. Either way audio starts as soon as the page text is ready; nothing waits on rendering audio files.
 
-On Mac, speech uses live system `say` so audio starts as soon as the page text is ready — no waiting to render audio files.
+### Get Kokoro
+
+Kokoro is not bundled. Install it once, outside the clone, so `update-and-run.sh` can keep fast-forwarding and its `npm install` does not prune it:
+
+```bash
+npm --prefix ~/.read-to-me install kokoro-js
+```
+
+Then launch the app. The first launch downloads the model weights (about 90 MB) and warms the voice in the background. Read uses `say` until that finishes and switches to Kokoro at the next sentence. Later launches load from the cache in a few seconds. Offline with no cached weights, Read stays on `say`.
+
+The pill status reads `Voice: Heart (Kokoro)` while Kokoro speaks. Set `READ_TO_ME_FORCE_SAY=1` before launching to keep the system voice even when Kokoro is ready.
+
+### Pick the `say` voice
 
 1. System Settings → Accessibility → Spoken Content → System Voice  
 2. Pick an Enhanced/Premium English voice  
@@ -80,12 +92,12 @@ On Mac, speech uses live system `say` so audio starts as soon as the page text i
 
 While reading, the app watches the window. When you stop scrolling, it re-reads and continues from the newly visible text. **Stop** turns follow off.
 
-Speech now starts through live macOS `say` (no waiting to render audio files), and OCR uses a smaller capture so Read and scroll catch-up feel much snappier.
+Speech starts as soon as OCR finishes. Kokoro plays through `afplay` when the model is ready; otherwise live `say` does. OCR uses a smaller capture so Read and scroll catch-up stay snappy.
 
 
 ### Optional: cloud neural voice
 
-Read still uses live `say`. These keys are only for the unused `synthesize-speech` path.
+Read uses Kokoro or live `say`. These keys are only for the unused `synthesize-speech` path.
 
 ```bash
 export OPENAI_API_KEY="sk-..."

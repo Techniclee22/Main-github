@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
 const {
+  collectContractErrors,
   extractNamedFunction,
   missingReadResultKeys,
 } = require("./check-api-contract.cjs");
@@ -114,6 +115,67 @@ async function readWindowSource(source) {
 `;
     const missing = missingReadResultKeys(src, KEYS);
     assert.deepEqual(missing, ['text (text: text)']);
+  });
+});
+
+describe("collectContractErrors engine rules", () => {
+  const real = (rel) =>
+    fs.readFileSync(path.join(__dirname, "..", rel), "utf8");
+  const errorsWith = (rel, edit) =>
+    collectContractErrors({ [rel]: edit(real(rel)) });
+
+  it("passes on the checked-in tree", () => {
+    assert.deepEqual(collectContractErrors(), []);
+  });
+
+  it("rejects a quoted live engine literal in speech.js", () => {
+    for (const engine of ["macos-say-live", "kokoro-live"]) {
+      const errors = errorsWith(
+        "renderer/speech.js",
+        (src) => `${src}\nconst fallbackEngine = '${engine}';\n`,
+      );
+      assert.ok(
+        errors.some((e) => e.includes(`speech.js names engine "${engine}"`)),
+        `expected speech.js error for ${engine}, got ${errors.join(" | ")}`,
+      );
+    }
+  });
+
+  it("keeps kokoro-js out of tts.cjs and kokoro-live.cjs, in either require form", () => {
+    const tts = errorsWith("lib/tts.cjs", (src) => `${src}\nrequire("kokoro-js");\n`);
+    assert.ok(tts.some((e) => e.startsWith("lib/tts.cjs requires kokoro-js")), tts.join(" | "));
+
+    const live = errorsWith(
+      "lib/kokoro-live.cjs",
+      (src) => `${src}\nrequire.resolve('kokoro-js');\n`,
+    );
+    assert.ok(
+      live.some((e) => e.startsWith("lib/kokoro-live.cjs requires kokoro-js")),
+      live.join(" | "),
+    );
+  });
+
+  it("requires the worker to be the file that loads kokoro-js", () => {
+    const errors = errorsWith("lib/kokoro-worker.cjs", (src) => {
+      const stripped = src.replace(/kokoro-js/g, "some-other-module");
+      assert.notEqual(stripped, src, "fixture must remove the real require");
+      return stripped;
+    });
+    assert.ok(
+      errors.includes("lib/kokoro-worker.cjs: missing the lazy require of kokoro-js"),
+      errors.join(" | "),
+    );
+  });
+
+  it("requires every contract engine string to live in tts.cjs or kokoro-live.cjs", () => {
+    const errors = errorsWith("api-contract.json", (src) => {
+      const contract = JSON.parse(src);
+      contract.engines.liveTest = "test-engine";
+      return JSON.stringify(contract);
+    });
+    assert.deepEqual(errors, [
+      'engine liveTest in tts.cjs or kokoro-live.cjs: missing `"test-engine"`',
+    ]);
   });
 });
 

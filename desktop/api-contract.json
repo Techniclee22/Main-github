@@ -13,6 +13,7 @@
     "planSpeech": "plan-speech",
     "synthesizeSpeechChunk": "synthesize-speech-chunk",
     "speakLive": "speak-live",
+    "prefetchLive": "prefetch-live",
     "stopLiveSay": "stop-live-say",
     "pauseLiveSay": "pause-live-say",
     "resumeLiveSay": "resume-live-say",
@@ -26,12 +27,16 @@
     "synthesizeSpeechChunk",
     "planSpeech",
     "speakLive",
+    "prefetchLive",
     "stopLiveSay",
     "pauseLiveSay",
     "resumeLiveSay",
+    "warmLiveVoice",
     "pickSayVoice",
     "readSystemVoiceLabel",
     "reflowForSpeech",
+    "packSentences",
+    "splitSentences",
     "chunkText"
   ],
   "mainTtsImports": [
@@ -39,13 +44,30 @@
     "synthesizeSpeechChunk",
     "planSpeech",
     "speakLive",
+    "prefetchLive",
     "stopLiveSay",
     "pauseLiveSay",
-    "resumeLiveSay"
+    "resumeLiveSay",
+    "warmLiveVoice"
   ],
-  "speechPublicMethods": ["arm", "speakLive", "speakStream", "pause", "resume", "stop"],
-  "speechCreateCallbacks": ["onState", "onBoundary", "onVoiceInfo"],
-  "pillSpeechCallbacks": ["onState", "onVoiceInfo"],
+  "speechPublicMethods": [
+    "arm",
+    "speakLive",
+    "prefetchLive",
+    "speakStream",
+    "pause",
+    "resume",
+    "stop"
+  ],
+  "speechCreateCallbacks": [
+    "onState",
+    "onBoundary",
+    "onVoiceInfo"
+  ],
+  "pillSpeechCallbacks": [
+    "onState",
+    "onVoiceInfo"
+  ],
   "pillDomIds": [
     "pill",
     "pickBtn",
@@ -61,8 +83,15 @@
   ],
   "engines": {
     "liveMac": "macos-say-live",
+    "liveKokoro": "kokoro-live",
     "browser": "browser",
     "neural": "neural"
   },
-  "readResultKeys": ["text", "title", "columns", "id", "words"]
+  "readResultKeys": [
+    "text",
+    "title",
+    "columns",
+    "id",
+    "words"
+  ]
 }

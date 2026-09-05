@@ -28,6 +28,8 @@
   let followFocusKey = "";
   let pendingFocusKey = "";
   let pendingFocusStable = 0;
+  /** Speculative OCR while focus debounce settles — shrinks swap lag. */
+  let pendingFocusRead = null;
   /** Prevent overlapping follow ticks (OCR can take longer than the interval). */
   let followTickBusy = false;
   /** True after focus landed on a window with no OCR text (e.g. Terminal). */
@@ -96,6 +98,7 @@
     followFocusKey = "";
     pendingFocusKey = "";
     pendingFocusStable = 0;
+    pendingFocusRead = null;
     followWaitingForReadable = false;
     followTargetId = null;
     applyPlaybackUi(
@@ -104,16 +107,93 @@
   }
 
   /** Hard-cancel follow + speech (Stop button / fatal Read errors). */
-  function stopAll() {
+  function stopAll(options = {}) {
     speakSession += 1;
     stopFollow();
-    speech.stop();
+    speech.stop(options);
     void window.readToMe.hideReadingHighlight();
   }
 
   function speechIsCurrent(session) {
     return session === speakSession && !speech.stopped;
   }
+
+
+  /** OCR cache so Read can skip capture when the page was already scanned. */
+  let pageScan = null;
+  let pageScanToken = 0;
+  const PAGE_SCAN_FRESH_MS = 90_000;
+
+  function clearPageScan() {
+    pageScan = null;
+  }
+
+  function storePageScan(result) {
+    const text = String(result?.text || "").trim();
+    if (!text || result?.empty) {
+      clearPageScan();
+      return null;
+    }
+    pageScan = {
+      windowId: result.id || selected.id || null,
+      text,
+      title: result.title || null,
+      columns: result.columns || 1,
+      at: Date.now(),
+    };
+    return pageScan;
+  }
+
+  function takeFreshPageScan(windowId) {
+    if (!pageScan?.text) return null;
+    if (Date.now() - pageScan.at > PAGE_SCAN_FRESH_MS) return null;
+    if (
+      windowId &&
+      pageScan.windowId &&
+      String(windowId) !== String(pageScan.windowId)
+    ) {
+      return null;
+    }
+    return pageScan;
+  }
+
+  function warmFirstSentence(text) {
+    const first = packUtterances(splitSentences(text))[0];
+    if (!first) return;
+    // Bypass speech.prefetchLive's stopped latch so a prior Stop still warms.
+    void window.readToMe.prefetchLive(first);
+  }
+
+  async function scanWindow({ preferSelected = false, silent = false } = {}) {
+    const token = ++pageScanToken;
+    if (!silent) setStatus("Scanning page…");
+    const useForced = preferSelected && forceSelected && selected.id;
+    const result = useForced
+      ? await window.readToMe.readSelectedWindow()
+      : selected.id && forceSelected
+        ? await window.readToMe.readWindowById(selected.id)
+        : await window.readToMe.readActiveWindow();
+    if (token !== pageScanToken) return null;
+    if (!result?.text?.trim() || result.empty) {
+      clearPageScan();
+      if (!silent) {
+        setStatus("No text yet — open a readable page, then click Read");
+      }
+      return null;
+    }
+    storePageScan(result);
+    if (result.title) {
+      selected = { id: result.id || selected.id, name: result.title };
+      targetLabel.textContent = result.title;
+      targetLabel.title = result.title;
+    } else if (result.id) {
+      selected = { id: result.id, name: selected.name || "Window" };
+    }
+    warmFirstSentence(result.text);
+    if (!silent) setStatus("Scanned — click Read");
+    return result;
+  }
+
 
   function textFingerprint(text) {
     return String(text || "")
@@ -158,6 +238,34 @@
     return parts.length ? parts : [clean];
   }
 
+  /**
+   * One sentence per speak turn (cut at every full stop).
+   * If Stop or retarget kills a turn mid-audio, the next turn is the next
+   * sentence — not a later pack that skipped unread sentences.
+   * Oversized OCR blobs with no period are still hard-split.
+   */
+  function packUtterances(sentences, targetChars = 700, maxChars = 1200) {
+    void targetChars;
+    const list = (sentences || []).map((s) => String(s || "").trim()).filter(Boolean);
+    if (!list.length) return [];
+    const packs = [];
+    for (const sentence of list) {
+      if (sentence.length > maxChars) {
+        let rest = sentence;
+        while (rest.length > maxChars) {
+          let cut = rest.lastIndexOf(" ", maxChars);
+          if (cut < maxChars * 0.5) cut = maxChars;
+          packs.push(rest.slice(0, cut).trim());
+          rest = rest.slice(cut).trim();
+        }
+        if (rest) packs.push(rest);
+        continue;
+      }
+      packs.push(sentence);
+    }
+    return packs;
+  }
+
   async function speakTextStreaming(text, { statusPrefix, windowId } = {}) {
     const clean = String(text || "").trim();
     if (!clean) throw new Error("Nothing to speak.");
@@ -165,17 +273,29 @@
     const sourceId = windowId || selected.id;
     const session = ++speakSession;
     // Kill any in-flight PDF (or prior window) utterance before arming.
-    speech.stop();
+    // keepPrefetch: true preserves a first-sentence warm from pre-scan.
+    speech.stop({ keepPrefetch: true });
     speech.arm();
 
     setStatus(statusPrefix || "Speaking with your system voice…");
-    const sentences = splitSentences(clean);
-    const total = Math.max(1, sentences.length);
+    const utterances = packUtterances(splitSentences(clean));
+    const total = Math.max(1, utterances.length);
+    // Kick synth for the first turn before the loop body so highlight/status
+    // work overlaps with Kokoro instead of sitting in front of it.
+    if (utterances[0] && speechIsCurrent(session)) {
+      speech.prefetchLive(utterances[0]);
+    }
 
     try {
-      for (let i = 0; i < sentences.length; i += 1) {
+      for (let i = 0; i < utterances.length; i += 1) {
         if (!speechIsCurrent(session)) break;
         const fraction = i / total;
+        // Start speak (+ atomic N+1 warm) before highlight/status so Kokoro
+        // gets the next sentence as early as possible in the turn.
+        const speaking = speech.speakLive(utterances[i], {
+          prefetchNext:
+            i + 1 < utterances.length ? utterances[i + 1] : undefined,
+        });
         if (sourceId) {
           try {
             void window.readToMe.highlightReading({ sourceId, fraction });
@@ -184,15 +304,15 @@
           }
         }
         setStatus(
-          `${statusPrefix || "Speaking…"} (${i + 1}/${sentences.length})`,
+          `${statusPrefix || "Speaking…"} (${i + 1}/${utterances.length})`,
         );
         try {
-          await speech.speakLive(sentences[i]);
+          await speaking;
         } catch (error) {
           if (!speechIsCurrent(session)) break;
           console.warn("Live say failed, falling back:", error?.message || error);
-          // Fall back for this sentence only (planSpeech / WAV path).
-          const plan = await window.readToMe.planSpeech(sentences[i]);
+          // Fall back for this utterance only (planSpeech / WAV path).
+          const plan = await window.readToMe.planSpeech(utterances[i]);
           if (!plan.chunks?.length) throw error;
           const cache = new Map();
           const fetchChunk = (index) => {
@@ -369,6 +489,7 @@
     pendingStable = 0;
     pendingFocusKey = "";
     pendingFocusStable = 0;
+    pendingFocusRead = null;
     const armedAt = Date.now() + FOLLOW_ARM_MS;
 
     followTimer = setInterval(() => {
@@ -397,6 +518,11 @@
             if (key !== pendingFocusKey) {
               pendingFocusKey = key;
               pendingFocusStable = 1;
+              // Start OCR immediately; confirm on the next tick so swap lag is
+              // mostly capture/OCR instead of debounce + capture/OCR.
+              pendingFocusRead = window.readToMe
+                .readActiveWindow()
+                .catch(() => null);
               return;
             }
             pendingFocusStable += 1;
@@ -408,7 +534,9 @@
             speakSession += 1;
             if (speech.speaking || speech.paused) speech.stop();
             setStatus(`Checking ${hint.app || "window"}…`);
-            const next = await window.readToMe.readActiveWindow();
+            const inFlight = pendingFocusRead;
+            pendingFocusRead = null;
+            const next = (await inFlight) || (await window.readToMe.readActiveWindow());
             if (generation !== followGeneration || !followActive) return;
 
             const switchedToReader = /preview|acrobat|adobe|skim/i.test(
@@ -578,13 +706,16 @@
       btn.addEventListener("click", async () => {
         selected = { id: win.id, name: win.name };
         forceSelected = true;
+        clearPageScan();
+        pageScanToken += 1;
         await window.readToMe.selectWindow(win.id);
         targetLabel.textContent = win.name;
         targetLabel.title = win.name;
         pickerOpen = false;
         picker.hidden = true;
         await resizeForPicker(false);
-        setStatus("Ready — click Read");
+        setStatus("Scanning page…");
+        void scanWindow({ preferSelected: true });
       });
       pickerList.appendChild(btn);
     }
@@ -605,20 +736,41 @@
   readBtn.addEventListener("click", async () => {
     reading = true;
     readBtn.disabled = true;
-    stopAll();
+    // Keep a pre-scan prefetch warm across this restart.
+    stopAll({ keepPrefetch: true });
     if (pickerOpen) {
       pickerOpen = false;
       picker.hidden = true;
       await resizeForPicker(false);
     }
 
-    setStatus("Reading the active window…");
     try {
       const useForced = forceSelected && selected.id;
-      forceSelected = false;
-      const result = useForced
-        ? await window.readToMe.readSelectedWindow()
-        : await window.readToMe.readActiveWindow();
+      let result = null;
+      const cached = takeFreshPageScan(useForced ? selected.id : null);
+      if (cached && (!useForced || String(cached.windowId) === String(selected.id))) {
+        forceSelected = false;
+        result = {
+          id: cached.windowId,
+          text: cached.text,
+          title: cached.title,
+          columns: cached.columns,
+          empty: false,
+        };
+        setStatus("Using scanned page…");
+      } else {
+        forceSelected = false;
+        setStatus(
+          useForced ? "Scanning selected window…" : "Scanning active window…",
+        );
+        result = useForced
+          ? await window.readToMe.readSelectedWindow()
+          : await window.readToMe.readActiveWindow();
+        if (result?.text?.trim() && !result.empty) {
+          storePageScan(result);
+          warmFirstSentence(result.text);
+        }
+      }
 
       if (!result?.text?.trim() || result.empty) {
         throw new Error(
@@ -680,4 +832,10 @@
   targetLabel.title = "Click Read to speak the window you were just using";
   setStatus("Open a PDF, then click Read");
   applyPlaybackUi("idle");
+  // Pre-scan the frontmost window so Read skips OCR when the page is ready.
+  window.setTimeout(() => {
+    if (!reading && !speech.speaking && !speech.paused) {
+      void scanWindow({ silent: false });
+    }
+  }, 1200);
 })();
