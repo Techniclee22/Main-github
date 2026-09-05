@@ -425,6 +425,33 @@ describe("prefetchLive", () => {
     });
   });
 
+  it("keeps a taken prefetch alive when the next utterance is prefetched", async () => {
+    // Pill prefetches N+1 while N's reused synth is still in flight. Bumping the
+    // prefetch token must not cancel N or speakLive returns interrupted with no audio.
+    const players = fakePlayers();
+    const kokoro = fakeKokoro("ready");
+    await withLiveDeps({ spawn: players.spawn, kill: players.kill, kokoro }, async () => {
+      assert.equal(prefetchLive("First utterance.").ok, true);
+      await waitFor(() => kokoro.synths.length === 1, "prefetch N");
+      const spoken = speakLive("First utterance.");
+      assert.equal(prefetchLive("Second utterance.").ok, true);
+      await waitFor(() => kokoro.synths.length === 2, "prefetch N+1");
+      assert.equal(
+        kokoro.synths[0].isCurrent(),
+        true,
+        "adopted prefetch must stay current after N+1 prefetch",
+      );
+      kokoro.synths[0].resolve(tempWav("alive"));
+      await waitFor(() => players.spawned.length === 1, "afplay must start for N");
+      assert.equal(players.spawned[0].command, "afplay");
+      players.spawned[0].finish();
+      kokoro.synths[1].resolve(tempWav("ignored-next"));
+      const result = await spoken;
+      assert.equal(result.engine, ENGINE.KOKORO);
+      assert.equal(result.interrupted, undefined);
+    });
+  });
+
   it("stopLiveSay drops a pending prefetch", async () => {
     const players = fakePlayers();
     const kokoro = fakeKokoro("ready");

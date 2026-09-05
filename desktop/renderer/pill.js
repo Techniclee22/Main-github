@@ -178,7 +178,15 @@
           buf = [];
           len = 0;
         }
-        packs.push(sentence);
+        // Hard-split oversized OCR blobs so one package cannot exceed Kokoro's limit.
+        let rest = sentence;
+        while (rest.length > maxChars) {
+          let cut = rest.lastIndexOf(" ", maxChars);
+          if (cut < maxChars * 0.5) cut = maxChars;
+          packs.push(rest.slice(0, cut).trim());
+          rest = rest.slice(cut).trim();
+        }
+        if (rest) packs.push(rest);
         continue;
       }
       const nextLen = len + (buf.length ? 1 : 0) + sentence.length;

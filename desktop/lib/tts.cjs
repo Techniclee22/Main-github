@@ -84,7 +84,7 @@ function packSentences(sentences, targetChars = 700, maxChars = 1200) {
         buf = [];
         len = 0;
       }
-      packs.push(sentence);
+      packs.push(...hardSplit(sentence, maxChars, maxChars));
       continue;
     }
     const nextLen = len + (buf.length ? 1 : 0) + sentence.length;
@@ -415,6 +415,9 @@ function takeLivePrefetch(clean) {
   if (!livePrefetch || livePrefetch.text !== clean) return null;
   const slot = livePrefetch;
   livePrefetch = null;
+  // Adopted synths must survive the next prefetchLive bumping livePrefetchToken;
+  // otherwise speakLive returns interrupted with no afplay (silent package skips).
+  slot.adopted = true;
   return slot;
 }
 
@@ -442,8 +445,12 @@ function prefetchLive(text) {
   clearLivePrefetch();
   const token = (livePrefetchToken += 1);
   const pieces = chunkText(clean, KOKORO_PIECE_CHARS, KOKORO_FIRST_PIECE_CHARS);
-  const pending = startSynth(pieces[0], () => livePrefetchToken === token);
-  livePrefetch = { text: clean, pieces, pending, token };
+  const slot = { text: clean, pieces, pending: null, token, adopted: false };
+  slot.pending = startSynth(
+    pieces[0],
+    () => slot.adopted || livePrefetchToken === token,
+  );
+  livePrefetch = slot;
   return { ok: true };
 }
 
