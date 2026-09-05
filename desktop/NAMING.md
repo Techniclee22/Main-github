@@ -30,6 +30,8 @@ npm run check
 
 `npm start`, `run.sh`, and `update-and-run.sh` still run `check-api` first so launch stays fast. `npm run check` adds the OCR and TTS unit tests. If preload, main, renderer, or tts disagree with the contract, the app **will not start**.
 
+`readResultKeys` are asserted inside the `readWindowSource` function body. A `text:` elsewhere in `main.cjs` (Tesseract options) does not satisfy the gate.
+
 When you intentionally rename something:
 
 1. Edit `api-contract.json`

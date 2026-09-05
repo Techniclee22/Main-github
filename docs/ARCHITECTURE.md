@@ -94,7 +94,9 @@ A previous `say` close handler used to unlink `liveSayTempFile`, which could be 
 
 The last Mac report was speech stopping after a few words. The tempfile fix is the likely root cause. It has not been retested on a Mac.
 
-`update-and-run.sh` fast-forwards whatever branch the clone is on. It does not pin a Cursor feature branch.
+`update-and-run.sh` fast-forwards whatever branch the clone is on. It does not pin a Cursor feature branch and it does not `reset --hard`. If `git pull --ff-only` fails (local edits, or `npm install` rewriting `desktop/package-lock.json`), the script prints stash / reset / checkout-main recovery instead of a raw git error.
+
+CI pins Node 22 (`.nvmrc`). Node 20 reached end-of-life on 2026-04-30.
 
 The next expensive change is a reading session in main that owns target, `say`, and follow. Do not add another renderer flag instead.
 

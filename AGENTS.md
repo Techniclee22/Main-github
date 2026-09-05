@@ -18,7 +18,7 @@ Rules: `desktop/NAMING.md`. Guard: `desktop/scripts/check-api-contract.cjs`.
 
 ## Commands that must stay green
 
-These run on Linux with no Electron binary and no `npm install` inside `desktop/`.
+These run on Linux with no Electron binary and no `npm install` inside `desktop/`. CI and `.nvmrc` pin Node 22.
 
 ```bash
 npm --prefix desktop run check
@@ -43,7 +43,7 @@ Do not add a test that needs macOS `say`, Screen Recording, or a live Electron w
 
 - Rename `speakLive`, IPC channels, or pill DOM ids in one file only.
 - Treat `src/` as the app.
-- Point `update-and-run.sh` at a hard-coded feature branch.
+- Point `update-and-run.sh` at a hard-coded feature branch. It fast-forwards the clone's current upstream. A dirty clone must print recovery steps, not `reset --hard` by default.
 - Describe a follow-along side panel or `speechSynthesis` as the desktop path. The desktop path is live `say` plus a reading-band overlay.
 - Start a second speak loop without bumping `speakSession`. `stopFollow()` must not bump it.
 - Assume `highlightReading({ sourceId })` or `scrollTargetWindow` honor `sourceId`. They use the frontmost external app.

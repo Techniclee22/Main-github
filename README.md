@@ -7,7 +7,7 @@ This is **not** a website you paste text into. It sits on top of whatever you al
 ## What you need
 
 - A **Mac** (your PDF screenshot is Preview on macOS)
-- [Node.js 20+](https://nodejs.org) installed (one-time)
+- [Node.js 22+](https://nodejs.org) installed (one-time)
 - Screen Recording permission when macOS asks (required to see other windows)
 - Accessibility permission if macOS asks (required to place the reading band and send Page Down)
 
@@ -26,6 +26,16 @@ chmod +x update-and-run.sh run.sh
 ```
 
 `main` does not contain the app yet. Skip that checkout once the pill lives on `main`.
+
+If you already cloned this repo onto `cursor/read-to-me-app-bbd6`, stay there until the pill is on `main`. After that branch is deleted, switch:
+
+```bash
+cd ~/Main-github
+git fetch origin
+git checkout main
+git pull
+./update-and-run.sh
+```
 
 After that, you almost never need the long command list again.
 
@@ -106,7 +116,7 @@ If a rename is needed, change the contract and every consumer in **one** commit 
 
 ## Checks
 
-Node 20 is enough. You do not need Electron or a Mac for this.
+Node 22 is enough. You do not need Electron or a Mac for this.
 
 ```bash
 npm --prefix desktop run check
@@ -127,7 +137,8 @@ That verifies IPC names and the OCR/TTS unit tests. GitHub Actions runs the same
 | Voice takes a long time to start | Fully quit, then `~/Main-github/update-and-run.sh`. Live `say` should start when OCR finishes. |
 | Speech stops after a few words | Click Stop, then Read. This was the last Mac bug report and has not been retested here. |
 | Scroll doesn’t change what is read | Stay on the same window. After scrolling, wait a moment. Click Stop then Read if needed. The pill must not be stealing focus from Preview. |
-| `npm` not found | Install Node.js LTS from nodejs.org, then open a **new** Terminal |
+| `npm` not found | Install Node.js 22 from nodejs.org, then open a **new** Terminal |
+| Update script dies on `git pull` | The clone has local edits. The script prints stash / reset / checkout-main recovery. It does not wipe your files. |
 
 ## Architecture
 
