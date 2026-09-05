@@ -64,5 +64,5 @@
     "browser": "browser",
     "neural": "neural"
   },
-  "readResultKeys": ["text", "title", "columns", "id"]
+  "readResultKeys": ["text", "title", "columns", "id", "words"]
 }

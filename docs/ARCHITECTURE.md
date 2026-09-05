@@ -85,7 +85,11 @@ Page Down is a no-op while the pill holds focus. Scroll-follow after the user sc
 
 Follow state in `pill.js` is a handful of timers and generation counters (`speakSession`, `followGeneration`, `followTargetId`). Those exist because an older loop kept talking after retarget. Do not start a second speak loop without bumping `speakSession`. `stopFollow()` must not bump `speakSession`. `startFollow()` calls it mid-Read.
 
-The last Mac report was speech stopping after a few words. The fix is `9d57955`. Nobody retested it here.
+OCR layout returns word boxes on the read payload (`words`) so a later band can use them. The pill still maps highlight by sentence fraction. Do not add another consumer of the string-only shape.
+
+A previous `say` close handler used to unlink `liveSayTempFile`, which could be the next sentence's file. Cleanup now unlinks only the file that spawn owned.
+
+The last Mac report was speech stopping after a few words. The tempfile fix is the likely root cause. It has not been retested on a Mac.
 
 `update-and-run.sh` fast-forwards whatever branch the clone is on. It does not pin a Cursor feature branch.
 

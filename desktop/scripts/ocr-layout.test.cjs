@@ -53,6 +53,19 @@ describe("clusterColumns", () => {
     const clustered = clusterColumns(words, 1000);
     assert.equal(clustered.length, 1);
   });
+
+  it("keeps full-width prose as one column", () => {
+    const words = [];
+    const xs = [40, 180, 320, 460, 600, 740];
+    for (let row = 0; row < 16; row += 1) {
+      const y = 40 + row * 22;
+      for (let i = 0; i < xs.length; i += 1) {
+        words.push(word(`W${row}x${i}`, xs[i], y, xs[i] + 70, y + 16));
+      }
+    }
+    const clustered = clusterColumns(words, 1000);
+    assert.equal(clustered.length, 1);
+  });
 });
 
 describe("textFromOcrPage", () => {
@@ -68,6 +81,12 @@ describe("textFromOcrPage", () => {
     assert.ok(leftIdx >= 0, `missing LeftA0 in: ${result.text.slice(0, 120)}`);
     assert.ok(rightIdx >= 0, `missing RightA0 in: ${result.text.slice(0, 120)}`);
     assert.ok(leftIdx < rightIdx, `left=${leftIdx} right=${rightIdx}`);
+    assert.ok(result.words.length > 0);
+    assert.equal(result.words[0].column, 0);
+    const rightWord = result.words.find((item) => item.text.startsWith("Right"));
+    assert.ok(rightWord);
+    assert.equal(rightWord.column, 1);
+    assert.ok(rightWord.bbox.x0 > 500);
   });
 });
 
