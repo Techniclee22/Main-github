@@ -1,0 +1,22 @@
+{
+  "name": "read-to-me-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Floating desktop pill that reads whatever window you pick — PDFs, apps, screens.",
+  "main": "main.cjs",
+  "scripts": {
+    "check-api": "node scripts/check-api-contract.cjs",
+    "test": "node --test scripts/ocr-layout.test.cjs scripts/tts.test.cjs scripts/check-api-contract.test.cjs scripts/window-pick.test.cjs scripts/follow-peek.test.cjs scripts/ocr-image.test.cjs scripts/launch-scripts.test.cjs",
+    "check": "node scripts/check-api-contract.cjs && npm test",
+    "prestart": "npm run check-api",
+    "start": "electron .",
+    "dev": "npm run check-api && electron ."
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "electron": "^37.2.0",
+    "tesseract.js": "^7.0.0"
+  }
+}

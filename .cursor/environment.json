@@ -1,0 +1,5 @@
+{
+  "name": "read-to-me",
+  "install": "npm --prefix desktop ci --ignore-scripts",
+  "start": "true"
+}

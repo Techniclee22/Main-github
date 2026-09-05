@@ -1,0 +1,68 @@
+{
+  "comment": "Single source of truth for Read to Me names. Rename here first, then update every consumer in the same commit. Run: npm run check-api",
+  "readToMe": {
+    "listWindows": "list-windows",
+    "selectWindow": "select-window",
+    "getSelectedWindow": "get-selected-window",
+    "getFocusHint": "get-focus-hint",
+    "readSelectedWindow": "read-selected-window",
+    "readActiveWindow": "read-active-window",
+    "readWindowById": "read-window-by-id",
+    "peekWindow": "peek-window",
+    "synthesizeSpeech": "synthesize-speech",
+    "planSpeech": "plan-speech",
+    "synthesizeSpeechChunk": "synthesize-speech-chunk",
+    "speakLive": "speak-live",
+    "stopLiveSay": "stop-live-say",
+    "pauseLiveSay": "pause-live-say",
+    "resumeLiveSay": "resume-live-say",
+    "resizePill": "resize-pill",
+    "highlightReading": "highlight-reading",
+    "hideReadingHighlight": "hide-reading-highlight",
+    "scrollTargetWindow": "scroll-target-window"
+  },
+  "ttsExports": [
+    "synthesizeSpeech",
+    "synthesizeSpeechChunk",
+    "planSpeech",
+    "speakLive",
+    "stopLiveSay",
+    "pauseLiveSay",
+    "resumeLiveSay",
+    "pickSayVoice",
+    "readSystemVoiceLabel",
+    "reflowForSpeech",
+    "chunkText"
+  ],
+  "mainTtsImports": [
+    "synthesizeSpeech",
+    "synthesizeSpeechChunk",
+    "planSpeech",
+    "speakLive",
+    "stopLiveSay",
+    "pauseLiveSay",
+    "resumeLiveSay"
+  ],
+  "speechPublicMethods": ["arm", "speakLive", "speakStream", "pause", "resume", "stop"],
+  "speechCreateCallbacks": ["onState", "onBoundary", "onVoiceInfo"],
+  "pillSpeechCallbacks": ["onState", "onVoiceInfo"],
+  "pillDomIds": [
+    "pill",
+    "pickBtn",
+    "targetLabel",
+    "readBtn",
+    "pauseBtn",
+    "resumeBtn",
+    "stopBtn",
+    "picker",
+    "pickerList",
+    "refreshBtn",
+    "status"
+  ],
+  "engines": {
+    "liveMac": "macos-say-live",
+    "browser": "browser",
+    "neural": "neural"
+  },
+  "readResultKeys": ["text", "title", "columns", "id", "words"]
+}

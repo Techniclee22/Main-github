@@ -1,0 +1,36 @@
+{
+  "name": "read-to-me",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "check": "npm --prefix desktop run check",
+    "test": "npm --prefix desktop test",
+    "start": "npm --prefix desktop start",
+    "dev": "npm --prefix desktop start",
+    "desktop": "npm --prefix desktop start",
+    "desktop:install": "npm --prefix desktop install",
+    "web:dev": "next dev",
+    "web:build": "next build",
+    "web:start": "next start",
+    "web:lint": "eslint"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "^4.0.74",
+    "ai": "^7.0.92",
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/dom-speech-recognition": "^0.0.12",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.4",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
