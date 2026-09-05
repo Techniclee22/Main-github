@@ -768,8 +768,8 @@ ipcMain.handle("prefetch-live", async (_event, text) => {
   return prefetchLive(text);
 });
 
-ipcMain.handle("stop-live-say", async () => {
-  stopLiveSay();
+ipcMain.handle("stop-live-say", async (_event, options) => {
+  stopLiveSay(options || {});
   return { ok: true };
 });
 

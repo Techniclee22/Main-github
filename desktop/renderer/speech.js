@@ -421,12 +421,12 @@
             speechSynthesis.resume();
           }
         },
-        stop() {
+        stop(options = {}) {
           stopped = true;
-          if (liveMode) {
-            void window.readToMe.stopLiveSay();
-            liveMode = false;
-          }
+          // Always hit main so a warm prefetch is cleared on Stop (or kept when
+          // options.keepPrefetch is set for a pre-scanned Read restart).
+          void window.readToMe.stopLiveSay(options);
+          liveMode = false;
           cleanupPlayback();
           speaking = false;
           paused = false;

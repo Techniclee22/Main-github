@@ -68,41 +68,23 @@ function splitSentences(text) {
 }
 
 /**
- * Pack sentences into speak-sized utterances that end on a breath boundary.
- * A single oversized sentence is only then hard-split with cutNear.
+ * One sentence per speak turn (cut at every full stop).
+ * Mid-utterance stop/interrupt then resumes on the next sentence instead of
+ * skipping unread sentences that had been packed into the same turn.
+ * Oversized OCR blobs with no period are still hard-split.
  */
 function packSentences(sentences, targetChars = 700, maxChars = 1200) {
+  void targetChars; // kept for call-site compatibility
   const list = (sentences || []).map((s) => String(s || "").trim()).filter(Boolean);
   if (!list.length) return [];
   const packs = [];
-  let buf = [];
-  let len = 0;
   for (const sentence of list) {
     if (sentence.length > maxChars) {
-      if (buf.length) {
-        packs.push(buf.join(" "));
-        buf = [];
-        len = 0;
-      }
       packs.push(...hardSplit(sentence, maxChars, maxChars));
       continue;
     }
-    const nextLen = len + (buf.length ? 1 : 0) + sentence.length;
-    if (buf.length && nextLen > targetChars) {
-      packs.push(buf.join(" "));
-      buf = [sentence];
-      len = sentence.length;
-      continue;
-    }
-    buf.push(sentence);
-    len = nextLen;
-    if (len >= maxChars) {
-      packs.push(buf.join(" "));
-      buf = [];
-      len = 0;
-    }
+    packs.push(sentence);
   }
-  if (buf.length) packs.push(buf.join(" "));
   return packs;
 }
 
@@ -307,9 +289,10 @@ function stopLivePlayer() {
   wakeLiveGate();
 }
 
-function stopLiveSay() {
+function stopLiveSay(options = {}) {
   stopLivePlayer();
-  clearLivePrefetch();
+  // Keep a warm prefetch across Read when the page was pre-scanned.
+  if (!options || !options.keepPrefetch) clearLivePrefetch();
 }
 
 function pauseLiveSay() {

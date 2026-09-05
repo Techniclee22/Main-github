@@ -70,14 +70,25 @@ describe("chunkText", () => {
 });
 
 describe("packSentences", () => {
-  it("joins short sentences until the target breath size", () => {
+  it("keeps one sentence per speak turn so a mid-turn stop cannot skip ahead", () => {
     const packs = packSentences(
       splitSentences("One short. Two short. Three is a little longer here."),
       40,
       80,
     );
-    assert.deepEqual(packs[0], "One short. Two short.");
-    assert.ok(packs.every((p) => /[.?!]$/.test(p)));
+    assert.deepEqual(packs, [
+      "One short.",
+      "Two short.",
+      "Three is a little longer here.",
+    ]);
+  });
+
+  it("hard-splits an oversized sentence with no period", () => {
+    const long = Array.from({ length: 40 }, () => "word").join(" ");
+    const packs = packSentences([long], 40, 80);
+    assert.ok(packs.length > 1);
+    assert.equal(packs.join(" "), long);
+    assert.ok(packs.every((p) => p.length <= 80));
   });
 });
 
@@ -467,6 +478,24 @@ describe("prefetchLive", () => {
       await waitFor(() => kokoro.synths.length === 2, "fresh synth after stop");
       kokoro.synths[1].resolve(tempWav("fresh"));
       await waitFor(() => players.spawned.length === 1, "afplay");
+      players.spawned[0].finish();
+      await spoken;
+    });
+  });
+
+  it("stopLiveSay can keep a pending prefetch for a pre-scanned Read", async () => {
+    const players = fakePlayers();
+    const kokoro = fakeKokoro("ready");
+    await withLiveDeps({ spawn: players.spawn, kill: players.kill, kokoro }, async () => {
+      prefetchLive("Warm sentence.");
+      await waitFor(() => kokoro.synths.length === 1, "prefetch synth");
+      const wav = tempWav("warm-keep");
+      stopLiveSay({ keepPrefetch: true });
+      kokoro.synths[0].resolve(wav);
+
+      const spoken = speakLive("Warm sentence.");
+      await waitFor(() => players.spawned.length === 1, "afplay reused warm");
+      assert.equal(kokoro.synths.length, 1, "kept prefetch was reused");
       players.spawned[0].finish();
       await spoken;
     });
