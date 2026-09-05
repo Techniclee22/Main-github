@@ -86,7 +86,7 @@ Page Down is a no-op while the pill holds focus. Scroll-follow after the user sc
 
 `synthesize-speech` IPC is live. If `AI_GATEWAY_API_KEY` or `OPENAI_API_KEY` is set, that handler may send page text to the cloud. Read does not call it.
 
-Follow state in `pill.js` is a handful of timers and generation counters (`speakSession`, `followGeneration`, `followTargetId`). Those exist because an older loop kept talking after retarget. Do not start a second speak loop without bumping `speakSession`. `stopFollow()` must not bump `speakSession`. `startFollow()` calls it mid-Read.
+Follow state in `pill.js` is a handful of timers and generation counters (`speakSession`, `followGeneration`, `followTargetId`). Those exist because an older loop kept talking after retarget. Do not start a second speak loop without bumping `speakSession`. `stopFollow()` must not bump `speakSession`. `startFollow()` calls it mid-Read. The follow timer must not `await` a full speak loop — that blocks the next focus switch.
 
 OCR layout returns word boxes on the read payload (`words`) so a later band can use them. The pill still maps highlight by sentence fraction. Do not add another consumer of the string-only shape.
 

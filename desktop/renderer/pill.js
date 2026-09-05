@@ -230,6 +230,23 @@
     return session;
   }
 
+  function queueFollowSpeech(text, { statusPrefix, windowId, after } = {}) {
+    reading = true;
+    void speakTextStreaming(text, { statusPrefix, windowId })
+      .then(async (session) => {
+        if (typeof after === "function" && speechIsCurrent(session) && followActive) {
+          await after(session);
+        }
+      })
+      .catch((error) => {
+        console.warn("Follow speech failed:", error?.message || error);
+      })
+      .finally(() => {
+        reading = false;
+        readBtn.disabled = false;
+      });
+  }
+
   /**
    * After a full capture finishes speaking, scroll the target ~one page and
    * keep reading — cancelled by Stop via followGeneration / followCatchupId.
@@ -428,16 +445,10 @@
             lastProfile = null;
             pendingProfile = null;
             pendingStable = 0;
-            reading = true;
-            try {
-              await speakTextStreaming(next.text, {
-                statusPrefix: "Speaking…",
-                windowId: followedId,
-              });
-            } finally {
-              reading = false;
-              readBtn.disabled = false;
-            }
+            queueFollowSpeech(next.text, {
+              statusPrefix: "Speaking…",
+              windowId: followedId,
+            });
             return;
           }
 
@@ -510,26 +521,22 @@
             targetLabel.title = next.title;
           }
 
-          reading = true;
-          try {
-            await speakTextStreaming(next.text, {
-              statusPrefix: "Speaking new page…",
-              windowId: next.id || followedId,
-            });
-            if (myCatchup !== followCatchupId || !followActive) return;
-            if (!speech.stopped) {
-              await continueAfterPage(
-                next.id || followedId,
-                next.text,
-                generation,
-              );
-            } else {
-              setStatus("Following the page — scroll anytime");
-            }
-          } finally {
-            reading = false;
-            readBtn.disabled = false;
-          }
+          queueFollowSpeech(next.text, {
+            statusPrefix: "Speaking new page…",
+            windowId: next.id || followedId,
+            after: async () => {
+              if (!speech.stopped) {
+                await continueAfterPage(
+                  next.id || followedId,
+                  next.text,
+                  generation,
+                );
+              } else {
+                setStatus("Following the page — scroll anytime");
+              }
+            },
+          });
+          return;
         } catch (error) {
           // Keep following; one failed peek shouldn't kill the session.
           console.warn("Follow-page check failed:", error?.message || error);
