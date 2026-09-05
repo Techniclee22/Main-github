@@ -20,6 +20,7 @@
   /** @type {ReturnType<typeof setInterval> | null} */
   let followTimer = null;
   let followGeneration = 0;
+  let followCatchupId = 0;
   let lastProfile = null;
   let pendingProfile = null;
   let pendingStable = 0;
@@ -70,6 +71,7 @@
   function stopFollow() {
     followActive = false;
     followGeneration += 1;
+    followCatchupId += 1;
     if (followTimer) {
       clearInterval(followTimer);
       followTimer = null;
@@ -138,23 +140,31 @@
   function splitSentences(text) {
     const clean = String(text || "").replace(/\s+/g, " ").trim();
     if (!clean) return [];
-    const parts = clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [clean];
-    return parts.map((p) => p.trim()).filter((p) => p.length > 1);
+    // Simple split on sentence-ending punctuation.
+    const parts = clean
+      .split(/(?<=[.?!])\s+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    return parts.length ? parts : [clean];
   }
 
   async function speakTextStreaming(text, { statusPrefix, windowId } = {}) {
     const clean = String(text || "").trim();
     if (!clean) throw new Error("Nothing to speak.");
 
+    const sourceId = windowId || selected.id;
     setStatus(statusPrefix || "Speaking with your system voice…");
     const sentences = splitSentences(clean);
+    const total = Math.max(1, sentences.length);
 
     try {
-      // Sentence-by-sentence keeps the on-page band in sync (`say` has no word callbacks).
+      // Sentence-by-sentence keeps the overlay band in sync (`say` has no word callbacks).
       for (let i = 0; i < sentences.length; i += 1) {
         if (speech.stopped) break;
-        const fraction = sentences.length <= 1 ? 0.08 : i / (sentences.length - 1);
-        void window.readToMe.highlightReading({ fraction });
+        const fraction = i / total;
+        if (sourceId) {
+          void window.readToMe.highlightReading({ sourceId, fraction });
+        }
         setStatus(
           `${statusPrefix || "Speaking…"} (${i + 1}/${sentences.length})`,
         );
@@ -162,6 +172,7 @@
           await speech.speakLive(sentences[i]);
         } catch (error) {
           console.warn("Live say failed, falling back:", error?.message || error);
+          // Fall back for this sentence only (planSpeech / WAV path).
           const plan = await window.readToMe.planSpeech(sentences[i]);
           if (!plan.chunks?.length) throw error;
           const cache = new Map();
@@ -175,6 +186,7 @@
             return pending;
           };
           void fetchChunk(0);
+          if (plan.chunks.length > 1) void fetchChunk(1);
           await speech.speakStream({
             chunkCount: plan.chunks.length,
             async getChunk(index) {
@@ -184,45 +196,101 @@
           });
         }
       }
+    } catch (error) {
+      void window.readToMe.hideReadingHighlight();
+      throw error;
     } finally {
       void window.readToMe.hideReadingHighlight();
     }
   }
 
+  /**
+   * After a full capture finishes speaking, scroll the target ~one page and
+   * keep reading — cancelled by Stop via followGeneration / followCatchupId.
+   */
   async function continueAfterPage(windowId, previousText, generation, depth = 0) {
     if (!followActive || speech.stopped) return;
     if (generation !== followGeneration) return;
-    // Hard stop so a stuck scroll can't recurse forever.
-    if (depth >= 30) {
+    if (depth >= 40) {
       setStatus("Following the page — scroll anytime");
       return;
     }
+
+    const myCatchup = ++followCatchupId;
+    // Avoid the follow timer treating our own scroll as a user page-move.
+    lastProfile = null;
+    pendingProfile = null;
+    pendingStable = 0;
+
     setStatus("Scrolling to continue…");
     const scrolled = await window.readToMe.scrollTargetWindow();
+    if (
+      myCatchup !== followCatchupId ||
+      generation !== followGeneration ||
+      !followActive ||
+      speech.stopped
+    ) {
+      return;
+    }
     if (!scrolled?.ok) {
       setStatus("Following the page — scroll anytime");
       return;
     }
-    await new Promise((r) => window.setTimeout(r, 900));
-    if (!followActive || speech.stopped || generation !== followGeneration) return;
+
+    await new Promise((resolve) => window.setTimeout(resolve, 800));
+    if (
+      myCatchup !== followCatchupId ||
+      generation !== followGeneration ||
+      !followActive ||
+      speech.stopped
+    ) {
+      return;
+    }
+
     setStatus("Reading the next section…");
     const next = await window.readToMe.readWindowById(windowId);
-    if (!followActive || speech.stopped || generation !== followGeneration) return;
+    if (
+      myCatchup !== followCatchupId ||
+      generation !== followGeneration ||
+      !followActive ||
+      speech.stopped
+    ) {
+      return;
+    }
+
     if (!textsDifferEnough(previousText, next.text)) {
       setStatus("Following the page — scroll anytime");
       return;
     }
+
     if (next.title) {
       selected = { id: next.id || windowId, name: next.title };
       targetLabel.textContent = next.title;
       targetLabel.title = next.title;
     }
-    await speakTextStreaming(next.text, {
-      statusPrefix: "Speaking…",
-      windowId: next.id || windowId,
-    });
-    if (followActive && !speech.stopped && generation === followGeneration) {
-      await continueAfterPage(windowId, next.text, generation, depth + 1);
+
+    reading = true;
+    try {
+      await speakTextStreaming(next.text, {
+        statusPrefix: "Speaking…",
+        windowId: next.id || windowId,
+      });
+    } finally {
+      reading = false;
+    }
+
+    if (
+      myCatchup === followCatchupId &&
+      followActive &&
+      !speech.stopped &&
+      generation === followGeneration
+    ) {
+      await continueAfterPage(
+        next.id || windowId,
+        next.text,
+        generation,
+        depth + 1,
+      );
     }
   }
 
@@ -240,7 +308,6 @@
     pendingProfile = null;
     pendingStable = 0;
     const armedAt = Date.now() + FOLLOW_ARM_MS;
-    let catchupId = 0;
 
     followTimer = setInterval(() => {
       void (async () => {
@@ -276,7 +343,7 @@
             pendingProfile = peek.profile;
             pendingStable = 1;
             setStatus("Page moving…");
-            catchupId += 1;
+            followCatchupId += 1;
             if (speech.speaking || speech.paused) speech.stop();
             return;
           }
@@ -291,11 +358,11 @@
           pendingProfile = null;
           pendingStable = 0;
 
-          const myCatchup = ++catchupId;
+          const myCatchup = ++followCatchupId;
           setStatus("Page settled — reading…");
           const next = await window.readToMe.readWindowById(windowId);
           if (
-            myCatchup !== catchupId ||
+            myCatchup !== followCatchupId ||
             generation !== followGeneration ||
             !followActive
           ) {
@@ -319,10 +386,18 @@
           try {
             await speakTextStreaming(next.text, {
               statusPrefix: "Speaking new page…",
-              windowId,
+              windowId: next.id || windowId,
             });
-            if (myCatchup !== catchupId || !followActive) return;
-            setStatus("Following the page — scroll anytime");
+            if (myCatchup !== followCatchupId || !followActive) return;
+            if (!speech.stopped) {
+              await continueAfterPage(
+                next.id || windowId,
+                next.text,
+                generation,
+              );
+            } else {
+              setStatus("Following the page — scroll anytime");
+            }
           } finally {
             reading = false;
             readBtn.disabled = false;
