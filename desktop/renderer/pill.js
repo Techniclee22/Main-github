@@ -96,19 +96,22 @@
   }
 
   async function speakTextStreaming(text, { statusPrefix } = {}) {
-    const plan = await window.readToMe.planSpeech(text);
-    if (!plan.text && !plan.chunks?.length) throw new Error("Nothing to speak.");
+    const clean = String(text || "").trim();
+    if (!clean) throw new Error("Nothing to speak.");
 
-    setStatus(
-      statusPrefix ||
-        `Speaking with your system voice (${plan.voice})…`,
-    );
+    setStatus(statusPrefix || "Speaking with your system voice…");
 
-    // Live macOS `say`: audio starts immediately — no WAV render wait.
-    if (plan.engine === "macos-say-live") {
-      await speech.speakLive(plan.text || plan.chunks[0]);
+    // Fast path: live macOS `say` — no planSpeech / WAV round-trips.
+    // Audio starts as soon as OCR text is ready.
+    try {
+      await speech.speakLive(clean);
       return;
+    } catch (error) {
+      console.warn("Live say failed, falling back:", error?.message || error);
     }
+
+    const plan = await window.readToMe.planSpeech(clean);
+    if (!plan.chunks?.length) throw new Error("Nothing to speak.");
 
     const cache = new Map();
     const fetchChunk = (index) => {

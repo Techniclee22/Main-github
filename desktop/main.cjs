@@ -7,6 +7,8 @@ const {
   nativeImage,
 } = require("electron");
 const path = require("path");
+const fs = require("fs");
+const os = require("os");
 const { execFile } = require("child_process");
 const { promisify } = require("util");
 const { createWorker } = require("tesseract.js");
@@ -24,12 +26,14 @@ const crypto = require("crypto");
 
 const execFileAsync = promisify(execFile);
 
-/** Capture size for OCR — large enough to read, small enough to stay fast. */
-const OCR_THUMB = { width: 1400, height: 1800 };
-/** Tiny thumbnails for scroll/change detection. */
-const PEEK_THUMB = { width: 160, height: 200 };
-/** Max width fed into Tesseract after capture. */
-const OCR_MAX_WIDTH = 1100;
+/** Tiny thumbs — only used to identify which window to read. */
+const IDENTIFY_THUMB = { width: 180, height: 120 };
+/** Fallback getSources size when screencapture is unavailable. */
+const OCR_THUMB = { width: 1200, height: 1600 };
+/** Tiny thumbs for scroll/change detection. */
+const PEEK_THUMB = { width: 120, height: 160 };
+/** Max width fed into Tesseract (smaller = much faster). */
+const OCR_MAX_WIDTH = 900;
 
 /** @type {BrowserWindow | null} */
 let pillWindow = null;
@@ -46,7 +50,7 @@ async function getOcrWorker() {
   if (!ocrWorker) {
     ocrWorker = await createWorker("eng");
     await ocrWorker.setParameters({
-      // Single block of text is faster and good enough for PDF pages.
+      // Auto page segmentation keeps two-column order working.
       tessedit_pageseg_mode: "3",
       preserve_interword_spaces: "1",
     });
@@ -177,13 +181,21 @@ function scoreWindowCandidate(win, focus) {
 }
 
 /**
- * Pick the window the user meant: last focused external app/window,
- * else a PDF/Preview-looking window, else the first available window.
+ * Electron source ids look like "window:CGWindowID:0" on macOS.
  */
-async function resolveTargetWindow(preferredId, thumbnailSize = OCR_THUMB) {
+function nativeWindowId(sourceId) {
+  const parts = String(sourceId || "").split(":");
+  return parts.length >= 2 && /^\d+$/.test(parts[1]) ? parts[1] : null;
+}
+
+/**
+ * Pick the window the user meant using tiny thumbnails only.
+ * Do NOT capture every window at OCR resolution — that alone costs seconds.
+ */
+async function resolveTargetWindow(preferredId) {
   const sources = await desktopCapturer.getSources({
     types: ["window"],
-    thumbnailSize,
+    thumbnailSize: IDENTIFY_THUMB,
   });
   const usable = sources.filter(
     (source) => source.name && !/^Read to Me/i.test(source.name),
@@ -197,8 +209,8 @@ async function resolveTargetWindow(preferredId, thumbnailSize = OCR_THUMB) {
     if (preferred) return preferred;
   }
 
-  await pollExternalFocus();
-
+  // Use the cached focus hint from background polling — don't wait on
+  // another osascript round-trip at click time.
   const ranked = [...usable].sort(
     (a, b) =>
       scoreWindowCandidate(b, lastExternalFocus) -
@@ -207,18 +219,62 @@ async function resolveTargetWindow(preferredId, thumbnailSize = OCR_THUMB) {
   return ranked[0];
 }
 
-async function captureWindowSource(source) {
-  if (!source || source.thumbnail.isEmpty()) {
-    throw new Error("Could not capture that window. Bring it to the front and try again.");
+/**
+ * Capture ONE window quickly.
+ * On macOS, `screencapture -l` grabs only that window (vs thumbnailizing all).
+ */
+async function captureWindowPng(sourceId, fallbackSource) {
+  if (process.platform === "darwin") {
+    const cgId = nativeWindowId(sourceId);
+    if (cgId) {
+      const outPath = path.join(
+        os.tmpdir(),
+        `read-to-me-${cgId}-${process.pid}-${Date.now()}.png`,
+      );
+      try {
+        await execFileAsync(
+          "screencapture",
+          ["-x", "-o", "-t", "png", "-l", String(cgId), outPath],
+          { timeout: 8000 },
+        );
+        const png = await fs.promises.readFile(outPath);
+        void fs.promises.unlink(outPath).catch(() => {});
+        if (png.length > 200) return png;
+      } catch (error) {
+        console.warn(
+          "screencapture failed, falling back to desktopCapturer:",
+          error?.message || error,
+        );
+        void fs.promises.unlink(outPath).catch(() => {});
+      }
+    }
   }
-  return { png: source.thumbnail.toPNG(), name: source.name, id: source.id };
+
+  if (fallbackSource?.thumbnail && !fallbackSource.thumbnail.isEmpty()) {
+    // Identify thumbs are too small for OCR — fetch a larger one.
+    const size = fallbackSource.thumbnail.getSize();
+    if (size.width >= 800) return fallbackSource.thumbnail.toPNG();
+  }
+
+  const sources = await desktopCapturer.getSources({
+    types: ["window"],
+    thumbnailSize: OCR_THUMB,
+  });
+  const match = sources.find((source) => source.id === sourceId);
+  if (!match || match.thumbnail.isEmpty()) {
+    throw new Error(
+      "Could not capture that window. Bring it to the front and try again.",
+    );
+  }
+  return match.thumbnail.toPNG();
 }
 
 async function ocrPng(pngBuffer) {
   let image = nativeImage.createFromBuffer(pngBuffer);
   const size = image.getSize();
   if (size.width > OCR_MAX_WIDTH) {
-    image = image.resize({ width: OCR_MAX_WIDTH, quality: "better" });
+    // "good" is faster than "better" and still readable for TTS.
+    image = image.resize({ width: OCR_MAX_WIDTH, quality: "good" });
     pngBuffer = image.toPNG();
   }
 
@@ -228,24 +284,27 @@ async function ocrPng(pngBuffer) {
 }
 
 async function readWindowSource(source) {
-  const { png, name, id } = await captureWindowSource(source);
-  selectedSourceId = id;
+  selectedSourceId = source.id;
+  const png = await captureWindowPng(source.id, source);
   const { text, columns } = await ocrPng(png);
   if (!text) {
     throw new Error(
       "No readable text found. Zoom the PDF a bit, then try Read again.",
     );
   }
-  return { text, title: name, columns: columns || 1, id };
+  return { text, title: source.name, columns: columns || 1, id: source.id };
 }
 
 app.whenReady().then(() => {
   createPillWindow();
   startFocusPolling();
-  // Warm OCR in the background so the first Read isn't paying worker startup.
+  // Warm OCR (and macOS speech) so the first Read isn't paying cold-start.
   void getOcrWorker().catch((error) => {
     console.warn("OCR warm-up failed:", error?.message || error);
   });
+  if (process.platform === "darwin") {
+    void execFileAsync("say", ["-r", "200", " "]).catch(() => {});
+  }
   app.on("activate", () => {
     if (!pillWindow) createPillWindow();
   });
@@ -276,12 +335,12 @@ ipcMain.handle("get-selected-window", async () => selectedSourceId);
 ipcMain.handle("get-focus-hint", async () => lastExternalFocus);
 
 ipcMain.handle("read-selected-window", async () => {
-  const source = await resolveTargetWindow(selectedSourceId, OCR_THUMB);
+  const source = await resolveTargetWindow(selectedSourceId);
   return readWindowSource(source);
 });
 
 ipcMain.handle("read-active-window", async () => {
-  const source = await resolveTargetWindow(null, OCR_THUMB);
+  const source = await resolveTargetWindow(null);
   return readWindowSource(source);
 });
 
@@ -331,7 +390,7 @@ ipcMain.handle("peek-window", async (_event, sourceId) => {
 });
 
 ipcMain.handle("read-window-by-id", async (_event, sourceId) => {
-  const source = await resolveTargetWindow(sourceId || selectedSourceId, OCR_THUMB);
+  const source = await resolveTargetWindow(sourceId || selectedSourceId);
   return readWindowSource(source);
 });
 

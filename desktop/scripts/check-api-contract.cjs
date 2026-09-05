@@ -144,7 +144,8 @@ for (const cb of contract.pillSpeechCallbacks) {
   assertIncludes("pill.js create callback", pillSrc, cb);
 }
 
-assertIncludes("pill.js live engine", pillSrc, `"${contract.engines.liveMac}"`);
+// Pill always tries speech.speakLive first (no plan.engine branch needed).
+assertIncludes("pill.js calls speech.speakLive", pillSrc, "speech.speakLive");
 assertIncludes("tts.js live engine", ttsSrc, `"${contract.engines.liveMac}"`);
 
 const htmlIds = extractDomIds(htmlSrc);
