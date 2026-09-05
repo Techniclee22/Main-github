@@ -32,6 +32,14 @@
   let followTickBusy = false;
   /** True after focus landed on a window with no OCR text (e.g. Terminal). */
   let followWaitingForReadable = false;
+  /**
+   * Only one speakTextStreaming loop may drive `say`. Retargeting used to
+   * arm() a new loop while the PDF loop was still alive — arm cleared Stop,
+   * so the PDF kept talking while the pill/highlight showed the new window.
+   */
+  let speakSession = 0;
+  /** Window id follow is currently reading — blocks stale continue-after-page. */
+  let followTargetId = null;
 
   // Real scroll only after ~1/4 of the viewport has moved.
   const SCROLL_MOVE_FRACTION = 0.25;
@@ -79,6 +87,7 @@
     followActive = false;
     followGeneration += 1;
     followCatchupId += 1;
+    speakSession += 1;
     followTickBusy = false;
     if (followTimer) {
       clearInterval(followTimer);
@@ -91,10 +100,15 @@
     pendingFocusKey = "";
     pendingFocusStable = 0;
     followWaitingForReadable = false;
+    followTargetId = null;
     void window.readToMe.hideReadingHighlight();
     applyPlaybackUi(
       speech.speaking ? "speaking" : speech.paused ? "paused" : "idle",
     );
+  }
+
+  function speechIsCurrent(session) {
+    return session === speakSession && !speech.stopped;
   }
 
   function scrollFraction(a, b) {
@@ -174,17 +188,18 @@
     if (!clean) throw new Error("Nothing to speak.");
 
     const sourceId = windowId || selected.id;
+    const session = ++speakSession;
+    // Kill any in-flight PDF (or prior window) utterance before arming.
+    speech.stop();
+    speech.arm();
+
     setStatus(statusPrefix || "Speaking with your system voice…");
     const sentences = splitSentences(clean);
     const total = Math.max(1, sentences.length);
 
-    // Clear Stop once for this intentional utterance. speakLive must not
-    // clear it again — that made Stop only pause until the next sentence.
-    speech.arm();
-
     try {
       for (let i = 0; i < sentences.length; i += 1) {
-        if (speech.stopped) break;
+        if (!speechIsCurrent(session)) break;
         const fraction = i / total;
         if (sourceId) {
           try {
@@ -199,7 +214,7 @@
         try {
           await speech.speakLive(sentences[i]);
         } catch (error) {
-          if (speech.stopped) break;
+          if (!speechIsCurrent(session)) break;
           console.warn("Live say failed, falling back:", error?.message || error);
           // Fall back for this sentence only (planSpeech / WAV path).
           const plan = await window.readToMe.planSpeech(sentences[i]);
@@ -224,13 +239,20 @@
             },
           });
         }
+        if (!speechIsCurrent(session)) break;
       }
     } catch (error) {
-      void window.readToMe.hideReadingHighlight();
+      if (session === speakSession) {
+        void window.readToMe.hideReadingHighlight();
+      }
       throw error;
     } finally {
-      void window.readToMe.hideReadingHighlight();
+      // A newer session owns the overlay — don't yank it when the old loop ends.
+      if (session === speakSession) {
+        void window.readToMe.hideReadingHighlight();
+      }
     }
+    return session;
   }
 
   /**
@@ -240,6 +262,9 @@
   async function continueAfterPage(windowId, previousText, generation, depth = 0) {
     if (!followActive || speech.stopped) return;
     if (generation !== followGeneration) return;
+    // Focus moved to Terminal (etc.) or retargeted — don't keep paging the PDF.
+    if (followWaitingForReadable) return;
+    if (followTargetId && windowId !== followTargetId) return;
     if (depth >= 40) {
       setStatus("Following the page — scroll anytime");
       return;
@@ -340,6 +365,7 @@
     followActive = true;
     followTickBusy = false;
     followWaitingForReadable = false;
+    followTargetId = windowId;
     applyPlaybackUi(
       speech.speaking ? "speaking" : speech.paused ? "paused" : "idle",
     );
@@ -397,6 +423,7 @@
               followFocusKey = key;
               followWaitingForReadable = true;
               followCatchupId += 1;
+              speakSession += 1;
               if (speech.speaking || speech.paused) speech.stop();
               void window.readToMe.hideReadingHighlight();
               setStatus(
@@ -410,6 +437,7 @@
             followFocusKey = key;
             followWaitingForReadable = false;
             followedId = next.id || followedId;
+            followTargetId = followedId;
             currentText = next.text;
             if (next.title) {
               selected = { id: followedId, name: next.title };
@@ -630,8 +658,10 @@
       window.setTimeout(() => {
         if (!speech.stopped) startFollow(windowId, result.text);
       }, 500);
-      await speakPromise;
-      if (followActive && !speech.stopped) {
+      const session = await speakPromise;
+      // If focus already retargeted (Terminal), a newer speakSession owns
+      // speech — do not page-down/re-read the original PDF on top of it.
+      if (followActive && speechIsCurrent(session)) {
         await continueAfterPage(windowId, result.text, followGeneration);
       } else if (!followActive) {
         setStatus("");
