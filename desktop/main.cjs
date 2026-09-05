@@ -627,11 +627,22 @@ function peekVerticalProfile(image) {
 }
 
 
-async function readWindowSource(source) {
+async function readWindowSource(source, { softEmpty = false } = {}) {
   selectedSourceId = source.id;
   const png = await captureWindowPng(source.id, source);
   const { text, columns } = await ocrPng(png);
   if (!text) {
+    // softEmpty: follow focus-switch must not reject the IPC (Electron logs
+    // every handler rejection, and the pill would retry forever).
+    if (softEmpty) {
+      return {
+        text: "",
+        title: source.name,
+        columns: columns || 1,
+        id: source.id,
+        empty: true,
+      };
+    }
     throw new Error(
       "No readable text found. Zoom the PDF a bit, then try Read again.",
     );
@@ -688,7 +699,8 @@ ipcMain.handle("read-selected-window", async () => {
 ipcMain.handle("read-active-window", async () => {
   await refreshFrontmost();
   const source = await resolveTargetWindow(null);
-  return readWindowSource(source);
+  // Soft-empty so Terminal/focus-switch OCR failures don't spam the main log.
+  return readWindowSource(source, { softEmpty: true });
 });
 
 ipcMain.handle("synthesize-speech", async (_event, text) => {

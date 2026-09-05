@@ -342,10 +342,18 @@
           }
         },
         /**
+         * Clear the Stop latch once before a multi-sentence read.
+         * speakLive must not clear it — otherwise Stop only lasts until the
+         * next sentence in the loop.
+         */
+        arm() {
+          stopped = false;
+        },
+        /**
          * Speak immediately via macOS `say` (no WAV render wait).
          */
         async speakLive(text) {
-          stopped = false;
+          if (stopped) return;
           liveMode = true;
           cleanupPlayback();
           words = tokenizeWords(text || "");
@@ -355,6 +363,7 @@
           onState?.("speaking");
 
           try {
+            if (stopped) return;
             const result = await window.readToMe.speakLive(text);
             if (result?.voice) {
               onVoiceInfo?.({

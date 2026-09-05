@@ -43,7 +43,7 @@
     "pauseLiveSay",
     "resumeLiveSay"
   ],
-  "speechPublicMethods": ["speakLive", "speakStream", "pause", "resume", "stop"],
+  "speechPublicMethods": ["arm", "speakLive", "speakStream", "pause", "resume", "stop"],
   "speechCreateCallbacks": ["onState", "onBoundary", "onVoiceInfo"],
   "pillSpeechCallbacks": ["onState", "onVoiceInfo"],
   "pillDomIds": [

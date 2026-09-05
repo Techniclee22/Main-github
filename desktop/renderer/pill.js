@@ -28,6 +28,10 @@
   let followFocusKey = "";
   let pendingFocusKey = "";
   let pendingFocusStable = 0;
+  /** Prevent overlapping follow ticks (OCR can take longer than the interval). */
+  let followTickBusy = false;
+  /** True after focus landed on a window with no OCR text (e.g. Terminal). */
+  let followWaitingForReadable = false;
 
   // Real scroll only after ~1/4 of the viewport has moved.
   const SCROLL_MOVE_FRACTION = 0.25;
@@ -75,6 +79,7 @@
     followActive = false;
     followGeneration += 1;
     followCatchupId += 1;
+    followTickBusy = false;
     if (followTimer) {
       clearInterval(followTimer);
       followTimer = null;
@@ -85,6 +90,8 @@
     followFocusKey = "";
     pendingFocusKey = "";
     pendingFocusStable = 0;
+    followWaitingForReadable = false;
+    void window.readToMe.hideReadingHighlight();
     applyPlaybackUi(
       speech.speaking ? "speaking" : speech.paused ? "paused" : "idle",
     );
@@ -171,12 +178,13 @@
     const sentences = splitSentences(clean);
     const total = Math.max(1, sentences.length);
 
+    // Clear Stop once for this intentional utterance. speakLive must not
+    // clear it again — that made Stop only pause until the next sentence.
+    speech.arm();
+
     try {
-      // Sentence-by-sentence keeps the overlay band in sync (`say` has no word callbacks).
-      // Read/follow call speech.stop() first, which latches stopped=true — speakLive
-      // clears that latch, so only check stopped after the first utterance has begun.
       for (let i = 0; i < sentences.length; i += 1) {
-        if (i > 0 && speech.stopped) break;
+        if (speech.stopped) break;
         const fraction = i / total;
         if (sourceId) {
           try {
@@ -191,6 +199,7 @@
         try {
           await speech.speakLive(sentences[i]);
         } catch (error) {
+          if (speech.stopped) break;
           console.warn("Live say failed, falling back:", error?.message || error);
           // Fall back for this sentence only (planSpeech / WAV path).
           const plan = await window.readToMe.planSpeech(sentences[i]);
@@ -329,6 +338,8 @@
     if (!windowId) return;
 
     followActive = true;
+    followTickBusy = false;
+    followWaitingForReadable = false;
     applyPlaybackUi(
       speech.speaking ? "speaking" : speech.paused ? "paused" : "idle",
     );
@@ -345,11 +356,19 @@
     followTimer = setInterval(() => {
       void (async () => {
         if (generation !== followGeneration || !followActive) return;
+        if (followTickBusy) return;
+        followTickBusy = true;
         try {
           const hint = await window.readToMe.getFocusHint();
           if (generation !== followGeneration || !followActive) return;
           const key = focusKey(hint);
           if (!followFocusKey && key) followFocusKey = key;
+
+          // Parked on Terminal (etc.): don't peek/re-read the old PDF — that
+          // restarts speech and sends the highlight bar flying.
+          if (followWaitingForReadable && key && key === followFocusKey) {
+            return;
+          }
 
           if (
             Date.now() >= armedAt &&
@@ -367,12 +386,29 @@
 
             pendingFocusKey = "";
             pendingFocusStable = 0;
-            setStatus(`Switching to ${hint.app}…`);
-            followCatchupId += 1;
-            if (speech.speaking || speech.paused) speech.stop();
+            // OCR first while the old page can keep speaking. Only stop/switch
+            // when the new window has readable text — otherwise adopt the focus
+            // key once so Terminal doesn't spam OCR every 250ms.
+            setStatus(`Checking ${hint.app || "window"}…`);
             const next = await window.readToMe.readActiveWindow();
             if (generation !== followGeneration || !followActive) return;
+
+            if (!next?.text?.trim() || next.empty) {
+              followFocusKey = key;
+              followWaitingForReadable = true;
+              followCatchupId += 1;
+              if (speech.speaking || speech.paused) speech.stop();
+              void window.readToMe.hideReadingHighlight();
+              setStatus(
+                `Can't read ${hint.app || "that window"} — switch back to continue`,
+              );
+              return;
+            }
+
+            followCatchupId += 1;
+            if (speech.speaking || speech.paused) speech.stop();
             followFocusKey = key;
+            followWaitingForReadable = false;
             followedId = next.id || followedId;
             currentText = next.text;
             if (next.title) {
@@ -488,6 +524,8 @@
         } catch (error) {
           // Keep following; one failed peek shouldn't kill the session.
           console.warn("Follow-page check failed:", error?.message || error);
+        } finally {
+          followTickBusy = false;
         }
       })();
     }, 250);
@@ -566,6 +604,12 @@
       const result = useForced
         ? await window.readToMe.readSelectedWindow()
         : await window.readToMe.readActiveWindow();
+
+      if (!result?.text?.trim() || result.empty) {
+        throw new Error(
+          "No readable text found. Zoom the PDF a bit, then try Read again.",
+        );
+      }
 
       if (result.title) {
         selected = { id: result.id || selected.id, name: result.title };
