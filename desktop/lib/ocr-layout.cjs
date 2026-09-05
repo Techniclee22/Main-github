@@ -57,7 +57,7 @@ function dropNoisyHeader(words, pageHeight) {
 }
 
 function findGutterSplit(words, pageWidth) {
-  if (words.length < 20 || pageWidth <= 0) return null;
+  if (words.length < 16 || pageWidth <= 0) return null;
 
   const bins = 64;
   const counts = new Array(bins).fill(0);
@@ -69,8 +69,8 @@ function findGutterSplit(words, pageWidth) {
     counts[idx] += 1;
   }
 
-  const start = Math.floor(bins * 0.28);
-  const end = Math.ceil(bins * 0.72);
+  const start = Math.floor(bins * 0.25);
+  const end = Math.ceil(bins * 0.75);
   let bestIdx = -1;
   let bestScore = Infinity;
 
@@ -79,7 +79,7 @@ function findGutterSplit(words, pageWidth) {
       counts[i - 1] + counts[i] + counts[Math.min(bins - 1, i + 1)];
     const leftDense = counts.slice(0, i).reduce((a, b) => a + b, 0);
     const rightDense = counts.slice(i + 1).reduce((a, b) => a + b, 0);
-    if (leftDense < 12 || rightDense < 12) continue;
+    if (leftDense < 10 || rightDense < 10) continue;
     const balance =
       Math.abs(leftDense - rightDense) / (leftDense + rightDense);
     const score = quiet * 3 + balance * 18;
@@ -96,44 +96,83 @@ function findGutterSplit(words, pageWidth) {
     counts[Math.min(bins - 1, bestIdx + 1)];
   const avg = words.length / bins;
   // Mistborn pages sometimes have art in the gutter — allow a bit of noise.
-  if (quiet > avg * 2.4) return null;
+  if (quiet > avg * 3.2) return null;
 
   return ((bestIdx + 0.5) / bins) * pageWidth;
+}
+
+/**
+ * 2-means on word center X. Survives gutters that histogram miss
+ * (decorative rules, chapter art).
+ */
+function splitByXMeans(words, pageWidth) {
+  if (words.length < 28 || pageWidth <= 0) return null;
+
+  let leftCenter = pageWidth * 0.28;
+  let rightCenter = pageWidth * 0.72;
+
+  for (let iter = 0; iter < 10; iter += 1) {
+    const left = [];
+    const right = [];
+    for (const word of words) {
+      const x = wordCenterX(word);
+      if (Math.abs(x - leftCenter) <= Math.abs(x - rightCenter)) left.push(word);
+      else right.push(word);
+    }
+    if (left.length < 14 || right.length < 14) return null;
+    leftCenter = left.reduce((sum, w) => sum + wordCenterX(w), 0) / left.length;
+    rightCenter =
+      right.reduce((sum, w) => sum + wordCenterX(w), 0) / right.length;
+  }
+
+  if (!(leftCenter < rightCenter)) return null;
+  if (rightCenter - leftCenter < pageWidth * 0.22) return null;
+
+  const left = [];
+  const right = [];
+  for (const word of words) {
+    const x = wordCenterX(word);
+    if (Math.abs(x - leftCenter) <= Math.abs(x - rightCenter)) left.push(word);
+    else right.push(word);
+  }
+  if (left.length < 14 || right.length < 14) return null;
+  return [left, right];
 }
 
 function clusterColumns(words, pageWidth) {
   if (!words.length) return [words];
 
   let split = findGutterSplit(words, pageWidth);
-  if (split == null) {
-    // Force a mid-page split when both halves look like real columns.
-    const mid = pageWidth / 2;
-    const left = words.filter((w) => wordCenterX(w) < mid);
-    const right = words.filter((w) => wordCenterX(w) >= mid);
-    if (left.length >= 18 && right.length >= 18) return [left, right];
-    return [words];
-  }
+  if (split != null) {
+    const gutter = pageWidth * 0.025;
+    const left = [];
+    const right = [];
+    const middle = [];
 
-  const gutter = pageWidth * 0.03;
-  const left = [];
-  const right = [];
-  const middle = [];
-
-  for (const word of words) {
-    const c = wordCenterX(word);
-    if (c < split - gutter) left.push(word);
-    else if (c > split + gutter) right.push(word);
-    else middle.push(word);
-  }
-
-  if (left.length >= 12 && right.length >= 12) {
-    for (const word of middle) {
-      if (wordCenterX(word) < split) left.push(word);
-      else right.push(word);
+    for (const word of words) {
+      const c = wordCenterX(word);
+      if (c < split - gutter) left.push(word);
+      else if (c > split + gutter) right.push(word);
+      else middle.push(word);
     }
-    return [left, right];
+
+    if (left.length >= 10 && right.length >= 10) {
+      for (const word of middle) {
+        if (wordCenterX(word) < split) left.push(word);
+        else right.push(word);
+      }
+      return [left, right];
+    }
   }
 
+  const means = splitByXMeans(words, pageWidth);
+  if (means) return means;
+
+  // Last resort: mid-page split when both halves look like real columns.
+  const mid = pageWidth / 2;
+  const left = words.filter((w) => wordCenterX(w) < mid);
+  const right = words.filter((w) => wordCenterX(w) >= mid);
+  if (left.length >= 14 && right.length >= 14) return [left, right];
   return [words];
 }
 
@@ -221,8 +260,18 @@ function reflowColumnProse(text) {
   return prose.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * OCR often emits curly quotes. `say` and our strip regex mishandle them
+ * ("don’t" → "don t"). Normalize to ASCII before any other cleanup.
+ */
+function normalizeQuotes(text) {
+  return String(text || "")
+    .replace(/[\u2018\u2019\u02BC\u2032]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"');
+}
+
 function sanitizeForSpeech(text) {
-  return text
+  return normalizeQuotes(text)
     .replace(/[^\S\n]+/g, " ")
     .replace(/[^\w\s.,;:'"!?()\-\n]/g, " ")
     .replace(/[ \t]+\n/g, "\n")
@@ -255,14 +304,17 @@ function trimLeadingJunk(text) {
 
 /**
  * @param {import('tesseract.js').Page} page
+ * @param {{ width?: number, height?: number }} [dims] prepared image size
  */
-function textFromOcrPage(page) {
+function textFromOcrPage(page, dims = {}) {
   const pageWidth = Math.max(
+    dims.width || 0,
     page.width || 0,
     ...(page.words || []).map((w) => w.bbox?.x1 || 0),
     1,
   );
   const pageHeight = Math.max(
+    dims.height || 0,
     page.height || 0,
     ...(page.words || []).map((w) => w.bbox?.y1 || 0),
     1,
@@ -305,4 +357,5 @@ module.exports = {
   findGutterSplit,
   isReadableWord,
   sanitizeForSpeech,
+  normalizeQuotes,
 };

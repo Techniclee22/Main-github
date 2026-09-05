@@ -369,9 +369,10 @@ function prepareImageForOcr(imageBuffer) {
   }
 
   image = addWhiteBorder(image, OCR_BORDER_PX);
+  ({ width, height } = image.getSize());
 
   // Opaque PNG (no alpha) — better OCR than lossy JPEG.
-  return image.toPNG();
+  return { png: image.toPNG(), width, height };
 }
 
 function isTessNoiseMessage(args) {
@@ -417,11 +418,14 @@ async function ocrPng(imageBuffer) {
     // debug:true redirects "Estimating resolution" into result.data.debug
     // instead of the terminal. blocks:true supplies word boxes for columns.
     const result = await worker.recognize(
-      prepared,
+      prepared.png,
       {},
       { text: true, blocks: true, debug: true },
     );
-    return textFromOcrPage(pageWithWords(result.data));
+    return textFromOcrPage(pageWithWords(result.data), {
+      width: prepared.width,
+      height: prepared.height,
+    });
   } finally {
     console.warn = prevWarn;
     console.error = prevError;

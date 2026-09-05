@@ -6,12 +6,14 @@ const { promisify } = require("util");
 
 const execFileAsync = promisify(execFile);
 
+const { normalizeQuotes } = require("./ocr-layout.cjs");
+
 /**
  * Join OCR line wraps into continuous prose.
  * `say` pauses on every newline, so visual line breaks must not reach TTS.
  */
 function reflowForSpeech(text) {
-  return String(text || "")
+  return normalizeQuotes(text)
     .split(/\n\n+/)
     .map((block) => {
       const lines = block
