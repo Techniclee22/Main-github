@@ -1,4 +1,4 @@
-const { execFile } = require("child_process");
+const { execFile, spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -52,8 +52,7 @@ function cutNear(rest, maxChars) {
 }
 
 /**
- * Small chunks → first audio starts fast; later chunks synthesize while playing.
- * First chunk is especially short so `say` returns sooner.
+ * Chunking kept for file/neural fallbacks. Live `say` speaks the full page.
  */
 function chunkText(text, maxChars = 380, firstMaxChars = 220) {
   const clean = reflowForSpeech(text);
@@ -63,7 +62,6 @@ function chunkText(text, maxChars = 380, firstMaxChars = 220) {
   const chunks = [];
   let rest = clean;
 
-  // Prefer a quick first sentence/clause so playback can begin ASAP.
   const firstEnd = cutNear(rest, firstMaxChars);
   chunks.push(rest.slice(0, firstEnd).trim());
   rest = rest.slice(firstEnd).trim();
@@ -127,22 +125,161 @@ async function pickSayVoice() {
   return cachedVoiceChoice;
 }
 
+/* ─── Live macOS `say` (speakers immediately — no WAV wait) ─── */
+
+/** @type {import('child_process').ChildProcess | null} */
+let liveSayProc = null;
+let liveSayPaused = false;
+let liveSayGeneration = 0;
+/** @type {string | null} */
+let liveSayTempFile = null;
+
+function cleanupLiveSayTemp() {
+  if (!liveSayTempFile) return;
+  const file = liveSayTempFile;
+  liveSayTempFile = null;
+  void fs.promises.unlink(file).catch(() => {});
+}
+
+function stopLiveSay() {
+  liveSayGeneration += 1;
+  liveSayPaused = false;
+  const proc = liveSayProc;
+  liveSayProc = null;
+  if (proc && !proc.killed) {
+    try {
+      try {
+        if (proc.pid) process.kill(proc.pid, "SIGCONT");
+      } catch {
+        // ignore
+      }
+      proc.kill("SIGKILL");
+    } catch {
+      // ignore
+    }
+  }
+  cleanupLiveSayTemp();
+}
+
+function pauseLiveSay() {
+  if (!liveSayProc || liveSayPaused || !liveSayProc.pid) return false;
+  try {
+    process.kill(liveSayProc.pid, "SIGSTOP");
+    liveSayPaused = true;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resumeLiveSay() {
+  if (!liveSayProc || !liveSayPaused || !liveSayProc.pid) return false;
+  try {
+    process.kill(liveSayProc.pid, "SIGCONT");
+    liveSayPaused = false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Synthesize one short chunk to WAV.
- * Prefer `say` writing WAV directly (skips afconvert) for lower latency.
+ * Speak through macOS `say` to the speakers immediately.
+ * Audio begins as soon as `say` starts — no file render wait.
+ */
+async function speakLive(text) {
+  const clean = reflowForSpeech(text);
+  if (!clean) throw new Error("Nothing to speak.");
+
+  stopLiveSay();
+  const generation = liveSayGeneration;
+  const voiceChoice = await pickSayVoice();
+
+  const file = path.join(
+    os.tmpdir(),
+    `read-to-me-live-${process.pid}-${Date.now()}.txt`,
+  );
+  await fs.promises.writeFile(file, clean, "utf8");
+  liveSayTempFile = file;
+
+  // No -v on macOS → Spoken Content / system voice (matches Terminal `say`).
+  const args = ["-r", "185", "-f", file];
+  if (process.platform !== "darwin") {
+    args.unshift("-v", voiceChoice.voice || "Samantha");
+  }
+
+  await new Promise((resolve, reject) => {
+    if (generation !== liveSayGeneration) {
+      cleanupLiveSayTemp();
+      resolve({ ok: true, interrupted: true });
+      return;
+    }
+
+    const proc = spawn("say", args, { stdio: "ignore" });
+    liveSayProc = proc;
+    liveSayPaused = false;
+
+    proc.on("error", (error) => {
+      if (liveSayProc === proc) liveSayProc = null;
+      liveSayPaused = false;
+      cleanupLiveSayTemp();
+      reject(error);
+    });
+
+    proc.on("close", () => {
+      if (liveSayProc === proc) liveSayProc = null;
+      liveSayPaused = false;
+      cleanupLiveSayTemp();
+      resolve({
+        ok: true,
+        interrupted: generation !== liveSayGeneration,
+        voice: voiceChoice.voice,
+      });
+    });
+  });
+
+  return {
+    ok: true,
+    engine: "macos-say-live",
+    voice: voiceChoice.voice,
+    text: clean,
+    wordCount: clean.split(/\s+/).filter(Boolean).length,
+  };
+}
+
+/**
+ * Plan speech without synthesizing.
+ * On macOS the default engine is live `say` (instant start).
+ */
+async function planSpeech(text) {
+  const clean = reflowForSpeech(text);
+  if (!clean) throw new Error("Nothing to speak.");
+
+  const voiceChoice = await pickSayVoice();
+  const live = process.platform === "darwin";
+  return {
+    engine: live ? "macos-say-live" : "browser",
+    voice: voiceChoice.voice,
+    // Live path speaks the full page in one shot.
+    chunks: live ? [clean] : chunkText(clean),
+    text: clean,
+    wordCount: clean.split(/\s+/).filter(Boolean).length,
+  };
+}
+
+/**
+ * Synthesize a single short chunk to WAV (fallback path only).
  */
 async function synthesizeOneSayChunk(chunk, label, dir, index) {
   const wavPath = path.join(dir, `part-${index}.wav`);
   const aiffPath = path.join(dir, `part-${index}.aiff`);
 
-  // No -v on macOS → Spoken Content / system voice (matches Terminal `say`).
-  const baseArgs = ["-r", "175"];
+  const baseArgs = ["-r", "185"];
   if (process.platform !== "darwin") {
     baseArgs.unshift("-v", label || "Samantha");
   }
 
   try {
-    // Direct WAV is much faster than AIFF + afconvert.
     await execFileAsync("say", [
       ...baseArgs,
       "-o",
@@ -151,7 +288,6 @@ async function synthesizeOneSayChunk(chunk, label, dir, index) {
       chunk,
     ]);
   } catch {
-    // Older macOS / non-WAV `say`: fall back to AIFF → afconvert.
     await execFileAsync("say", [...baseArgs, "-o", aiffPath, chunk]);
     await execFileAsync("afconvert", [
       "-f",
@@ -170,48 +306,25 @@ async function synthesizeOneSayChunk(chunk, label, dir, index) {
 }
 
 /**
- * Plan speech without synthesizing — returns small text chunks + voice label.
- */
-async function planSpeech(text) {
-  const clean = reflowForSpeech(text);
-  if (!clean) throw new Error("Nothing to speak.");
-
-  const voiceChoice = await pickSayVoice();
-  return {
-    engine: process.platform === "darwin" ? "macos-say" : "browser",
-    voice: voiceChoice.voice,
-    chunks: chunkText(clean),
-    text: clean,
-    wordCount: clean.split(/\s+/).filter(Boolean).length,
-  };
-}
-
-/**
- * Synthesize a single short chunk quickly (for streamed playback).
+ * For live engine: return text immediately (no WAV).
+ * Otherwise synthesize a WAV chunk / browser fallback.
  */
 async function synthesizeSpeechChunk(chunkTextValue, voiceLabel) {
   const chunk = reflowForSpeech(chunkTextValue);
   if (!chunk) throw new Error("Empty speech chunk.");
 
   if (process.platform === "darwin") {
-    const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "read-to-me-"));
-    try {
-      const label = voiceLabel || (await pickSayVoice()).voice;
-      const part = await synthesizeOneSayChunk(chunk, label, dir, 0);
-      return {
-        engine: "macos-say",
-        voice: label,
-        parts: [part],
-        mime: "audio/wav",
-        text: chunk,
-        wordCount: chunk.split(/\s+/).filter(Boolean).length,
-      };
-    } finally {
-      void fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
-    }
+    const label = voiceLabel || (await pickSayVoice()).voice;
+    return {
+      engine: "macos-say-live",
+      voice: label,
+      parts: [],
+      mime: null,
+      text: chunk,
+      wordCount: chunk.split(/\s+/).filter(Boolean).length,
+    };
   }
 
-  // Non-Mac / fallback: let the renderer use browser TTS for this chunk.
   return {
     engine: "browser",
     voice: "en-US",
@@ -266,7 +379,7 @@ async function synthesizeWithGateway(text) {
   };
 }
 
-/** Full synthesize (used rarely; streaming path is preferred). */
+/** Full synthesize (neural / rare fallback). */
 async function synthesizeSpeech(text) {
   const clean = reflowForSpeech(text);
   if (!clean) throw new Error("Nothing to speak.");
@@ -279,34 +392,14 @@ async function synthesizeSpeech(text) {
   }
 
   const plan = await planSpeech(clean);
-  if (plan.engine === "browser") {
-    return {
-      engine: "browser",
-      voice: "en-US",
-      parts: [],
-      mime: null,
-      wordCount: plan.wordCount,
-      text: plan.text,
-    };
-  }
-
-  const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "read-to-me-"));
-  try {
-    const wavParts = [];
-    for (let i = 0; i < plan.chunks.length; i += 1) {
-      wavParts.push(await synthesizeOneSayChunk(plan.chunks[i], plan.voice, dir, i));
-    }
-    return {
-      engine: "macos-say",
-      voice: plan.voice,
-      parts: wavParts,
-      mime: "audio/wav",
-      wordCount: plan.wordCount,
-      text: plan.text,
-    };
-  } finally {
-    void fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
-  }
+  return {
+    engine: plan.engine,
+    voice: plan.voice,
+    parts: [],
+    mime: null,
+    wordCount: plan.wordCount,
+    text: plan.text,
+  };
 }
 
 module.exports = {
@@ -317,4 +410,8 @@ module.exports = {
   readSystemVoiceLabel,
   reflowForSpeech,
   chunkText,
+  speakLive,
+  stopLiveSay,
+  pauseLiveSay,
+  resumeLiveSay,
 };

@@ -24,6 +24,7 @@
   let pendingHash = null;
   let pendingStable = 0;
   let followActive = false;
+  let followBusy = false;
 
   const speech = window.ReadToMeSpeech.create({
     onState(state) {
@@ -96,12 +97,18 @@
 
   async function speakTextStreaming(text, { statusPrefix } = {}) {
     const plan = await window.readToMe.planSpeech(text);
-    if (!plan.chunks?.length) throw new Error("Nothing to speak.");
+    if (!plan.text && !plan.chunks?.length) throw new Error("Nothing to speak.");
 
     setStatus(
       statusPrefix ||
         `Speaking with your system voice (${plan.voice})…`,
     );
+
+    // Live macOS `say`: audio starts immediately — no WAV render wait.
+    if (plan.engine === "macos-say-live") {
+      await speech.speakLive(plan.text || plan.chunks[0]);
+      return;
+    }
 
     const cache = new Map();
     const fetchChunk = (index) => {
@@ -114,7 +121,6 @@
       return pending;
     };
 
-    // Prefetch the first two chunks so playback starts ASAP.
     void fetchChunk(0);
     if (plan.chunks.length > 1) void fetchChunk(1);
 
@@ -143,7 +149,7 @@
 
     followTimer = setInterval(() => {
       void (async () => {
-        if (generation !== followGeneration || !followActive) return;
+        if (generation !== followGeneration || !followActive || followBusy) return;
         try {
           const peek = await window.readToMe.peekWindow(windowId);
           if (!peek?.hash || generation !== followGeneration) return;
@@ -159,7 +165,7 @@
             return;
           }
 
-          // Wait until the new view stays stable briefly (scroll finished).
+          // One confirming poll (~400ms) after the page stops moving.
           if (peek.hash === pendingHash) {
             pendingStable += 1;
           } else {
@@ -176,42 +182,49 @@
           pendingStable = 0;
 
           setStatus("Page changed — catching up…");
-          const next = await window.readToMe.readWindowById(windowId);
-          if (generation !== followGeneration || !followActive) return;
-
-          if (!textsDifferEnough(currentText, next.text)) {
-            if (speech.speaking || speech.paused) setStatus("Speaking…");
-            else setStatus("Following the page — scroll anytime");
-            return;
-          }
-
-          currentText = next.text;
-          if (next.title) {
-            selected = { id: next.id || windowId, name: next.title };
-            targetLabel.textContent = next.title;
-            targetLabel.title = next.title;
-          }
-
-          // Interrupt current audio (if any) and read the newly visible page.
-          if (speech.speaking || speech.paused) speech.stop();
-          reading = true;
+          followBusy = true;
           try {
-            await speakTextStreaming(next.text, {
-              statusPrefix: "Speaking new page…",
-            });
-            if (followActive) setStatus("Following the page — scroll anytime");
-            else setStatus("");
+            // Stop audio immediately so catch-up feels snappy while OCR runs.
+            if (speech.speaking || speech.paused) speech.stop();
+
+            const next = await window.readToMe.readWindowById(windowId);
+            if (generation !== followGeneration || !followActive) return;
+
+            if (!textsDifferEnough(currentText, next.text)) {
+              if (speech.speaking || speech.paused) setStatus("Speaking…");
+              else setStatus("Following the page — scroll anytime");
+              return;
+            }
+
+            currentText = next.text;
+            if (next.title) {
+              selected = { id: next.id || windowId, name: next.title };
+              targetLabel.textContent = next.title;
+              targetLabel.title = next.title;
+            }
+
+            reading = true;
+            try {
+              await speakTextStreaming(next.text, {
+                statusPrefix: "Speaking new page…",
+              });
+              if (followActive) setStatus("Following the page — scroll anytime");
+              else setStatus("");
+            } finally {
+              reading = false;
+              readBtn.disabled = false;
+            }
           } finally {
-            reading = false;
-            readBtn.disabled = false;
+            followBusy = false;
           }
         } catch (error) {
           // Keep following; one failed peek shouldn't kill the session.
           console.warn("Follow-page check failed:", error?.message || error);
         }
       })();
-    }, 1400);
+    }, 400);
   }
+
 
   async function resizeForPicker(open) {
     pill.classList.toggle("is-expanded", open);

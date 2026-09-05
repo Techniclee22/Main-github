@@ -73,6 +73,7 @@
       let words = [];
       let wordIndex = -1;
       let stopped = false;
+      let liveMode = false;
       /** @type {(() => void) | null} */
       let abortCurrentPart = null;
 
@@ -340,7 +341,45 @@
             finishIdle();
           }
         },
-        pause() {
+        /**
+         * Speak immediately via macOS `say` (no WAV render wait).
+         */
+        async speakLive(text) {
+          stopped = false;
+          liveMode = true;
+          cleanupPlayback();
+          words = tokenizeWords(text || "");
+          wordIndex = -1;
+          speaking = true;
+          paused = false;
+          onState?.("speaking");
+
+          try {
+            const result = await window.readToMe.speakLive(text);
+            if (result?.voice) {
+              onVoiceInfo?.({
+                engine: "macos-say-live",
+                voice: result.voice,
+              });
+            }
+          } finally {
+            liveMode = false;
+            if (!stopped) {
+              speaking = false;
+              paused = false;
+              onState?.("idle");
+            }
+          }
+        },
+        async pause() {
+          if (liveMode) {
+            const res = await window.readToMe.pauseLiveSay();
+            if (res?.ok !== false) {
+              paused = true;
+              onState?.("paused");
+            }
+            return;
+          }
           if (audioEl && !audioEl.paused) {
             paused = true;
             audioEl.pause();
@@ -352,7 +391,15 @@
             speechSynthesis.pause();
           }
         },
-        resume() {
+        async resume() {
+          if (liveMode) {
+            const res = await window.readToMe.resumeLiveSay();
+            if (res?.ok !== false) {
+              paused = false;
+              onState?.("speaking");
+            }
+            return;
+          }
           if (audioEl && audioEl.paused) {
             paused = false;
             void audioEl.play();
@@ -366,6 +413,10 @@
         },
         stop() {
           stopped = true;
+          if (liveMode) {
+            void window.readToMe.stopLiveSay();
+            liveMode = false;
+          }
           cleanupPlayback();
           speaking = false;
           paused = false;

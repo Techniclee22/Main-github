@@ -57,7 +57,7 @@ Optional: the window button (▣) lets you force a specific window if auto-pick 
 
 The app uses the **same voice as Terminal** `say "…"` — your Mac Spoken Content / system voice.
 
-Speech starts on the first sentences while the rest is still preparing, so you shouldn’t wait on a long load.
+On Mac, speech uses live system `say` so audio starts as soon as the page text is ready — no waiting to render audio files.
 
 1. System Settings → Accessibility → Spoken Content → System Voice  
 2. Pick an Enhanced/Premium English voice  
@@ -66,7 +66,10 @@ Speech starts on the first sentences while the rest is still preparing, so you s
 
 ### Follow as you scroll
 
-While reading, the app watches the window. If you scroll (or the page changes) and it settles, it catches up and reads the newly visible text. Click **Stop** to turn that off.
+While reading, the app watches the window. When you stop scrolling, it re-reads and continues from the newly visible text. **Stop** turns follow off.
+
+Speech now starts through live macOS `say` (no waiting to render audio files), and OCR uses a smaller capture so Read and scroll catch-up feel much snappier.
+
 
 ### Optional: cloud neural voice
 
@@ -91,6 +94,7 @@ Handbooks and magazines are read **left column top→bottom, then right column**
 
 | Problem | Fix |
 | --- | --- |
+| Voice or scroll catch-up still feels slow | Run `~/Main-github/update-and-run.sh` for the live-`say` + faster OCR build |
 | Empty window list | Open the PDF first, click Refresh in the picker |
 | “No readable text” | Zoom in on the page, make sure the text is visible, try Read again |
 | Can’t see other apps | Enable Screen Recording for the app in macOS Privacy settings |
