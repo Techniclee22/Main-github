@@ -14,6 +14,9 @@ if [[ ! -d "$DESKTOP_DIR" ]]; then
 fi
 
 cd "$DESKTOP_DIR"
+echo "→ Checking API names…"
+npm run check-api
+
 echo "→ Starting the floating pill…"
 echo "  (Quit later with Ctrl+C in this Terminal window)"
 npm start

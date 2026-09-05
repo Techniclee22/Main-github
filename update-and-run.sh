@@ -28,6 +28,9 @@ echo "→ Installing dependencies…"
 cd "$DESKTOP_DIR"
 npm install
 
+echo "→ Checking API names (preload / main / renderer must match)…"
+npm run check-api
+
 echo "→ Starting the floating pill…"
 echo "  (Quit later with Ctrl+C in this Terminal window)"
 npm start

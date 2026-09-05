@@ -5,8 +5,10 @@
   "description": "Floating desktop pill that reads whatever window you pick — PDFs, apps, screens.",
   "main": "main.cjs",
   "scripts": {
+    "check-api": "node scripts/check-api-contract.cjs",
+    "prestart": "npm run check-api",
     "start": "electron .",
-    "dev": "electron ."
+    "dev": "npm run check-api && electron ."
   },
   "dependencies": {
     "electron": "^37.2.0",

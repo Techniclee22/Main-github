@@ -83,6 +83,16 @@ npm start
 
 Handbooks and magazines are read **left column top→bottom, then right column** — not straight across the page. Decorative chapter headers are skipped when possible.
 
+## Keeping names consistent
+
+The desktop app talks across **preload → main → renderer → TTS**. Those layers must use the **same** method names, IPC channels, DOM ids, and engine strings.
+
+- Contract: [`desktop/api-contract.json`](desktop/api-contract.json)
+- Rules: [`desktop/NAMING.md`](desktop/NAMING.md)
+- Guard: `cd desktop && npm run check-api` (also runs before `npm start` / `update-and-run.sh`)
+
+If a rename is needed, change the contract and every consumer in **one** commit — never one file alone.
+
 ## Project layout
 
 | Folder | Role |
