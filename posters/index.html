@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Westlake Boys Shakespeare Company — Poster Suite Presentation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Cinzel+Decorative:wght@700;900&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400;1,600&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --wbhs-green: #045643;
+      --wbhs-dark-green: #02362a;
+      --wbhs-red: #c72037;
+      --wbhs-gold: #c5a059;
+      --bg-dark: #121614;
+      --card-bg: #1c221e;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: radial-gradient(circle at 50% 20%, #1f2722 0%, #111513 100%);
+      color: #ede8dc;
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      padding: 50px 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    header {
+      text-align: center;
+      max-width: 900px;
+      margin-bottom: 50px;
+    }
+
+    .crest-icon {
+      width: 72px;
+      height: 86px;
+      margin-bottom: 16px;
+    }
+
+    .school-title {
+      font-family: 'Cinzel', serif;
+      font-size: 16px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--wbhs-gold);
+      margin-bottom: 8px;
+    }
+
+    .main-heading {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 46px;
+      font-weight: 900;
+      color: #fffdf8;
+      letter-spacing: -0.01em;
+      line-height: 1.15;
+      margin-bottom: 14px;
+    }
+
+    .tagline {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 22px;
+      color: #c9d4cd;
+      margin-bottom: 20px;
+    }
+
+    .palette-strip {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(255, 255, 255, 0.06);
+      padding: 8px 24px;
+      border-radius: 40px;
+      border: 1px solid rgba(197, 160, 89, 0.3);
+    }
+
+    .swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255, 255, 255, 0.4);
+      display: inline-block;
+    }
+    .swatch-green { background: #045643; }
+    .swatch-red { background: #c72037; }
+    .swatch-parchment { background: #f9f5ec; }
+    .swatch-gold { background: #c5a059; }
+
+    .swatch-label {
+      font-family: 'Cinzel', serif;
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--wbhs-gold);
+      margin-left: 6px;
+    }
+
+    /* POSTER COMPARISON GRID */
+    .posters-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 50px;
+      max-width: 1500px;
+      width: 100%;
+      margin-bottom: 60px;
+    }
+
+    .poster-card {
+      background: var(--card-bg);
+      border: 1px solid rgba(197, 160, 89, 0.3);
+      border-radius: 8px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      transition: transform 0.25s ease, border-color 0.25s ease;
+    }
+
+    .poster-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--wbhs-gold);
+    }
+
+    .card-title {
+      font-family: 'Cinzel Decorative', 'Cinzel', serif;
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      color: #fffdf8;
+    }
+
+    .card-subtitle {
+      font-family: 'Cinzel', serif;
+      font-size: 12px;
+      letter-spacing: 0.22em;
+      color: var(--wbhs-gold);
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+
+    .poster-preview-img {
+      width: 100%;
+      max-width: 650px;
+      height: auto;
+      border-radius: 4px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      margin-bottom: 22px;
+    }
+
+    .card-specs {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(197, 160, 89, 0.2);
+      border-radius: 4px;
+      padding: 16px 20px;
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 16px;
+      line-height: 1.5;
+      color: #ccd7d0;
+      margin-bottom: 18px;
+    }
+
+    .card-specs strong {
+      color: var(--wbhs-gold);
+      font-family: 'Cinzel', serif;
+      font-size: 13px;
+      letter-spacing: 0.1em;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 14px;
+      width: 100%;
+    }
+
+    .btn {
+      flex: 1;
+      text-align: center;
+      padding: 12px 20px;
+      font-family: 'Cinzel', serif;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      text-decoration: none;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: var(--wbhs-green);
+      color: #fff;
+      border: 1px solid var(--wbhs-gold);
+    }
+    .btn-primary:hover {
+      background: #06735a;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--wbhs-gold);
+      border: 1px solid var(--wbhs-gold);
+    }
+    .btn-secondary:hover {
+      background: rgba(197, 160, 89, 0.15);
+      color: #fff;
+    }
+
+    /* FOOTER NOTES */
+    footer {
+      text-align: center;
+      max-width: 800px;
+      border-top: 1px solid rgba(197, 160, 89, 0.3);
+      padding-top: 30px;
+      font-size: 15px;
+      color: #8c9c93;
+    }
+
+    footer p {
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <img src="assets/wbhs_crest.svg" alt="Westlake Boys High School Crest" class="crest-icon">
+    <div class="school-title">Westlake Boys High School &bull; Drama &amp; Theatre Arts</div>
+    <h1 class="main-heading">The Shakespeare Company Poster Suite</h1>
+    <p class="tagline">Two complementary fine-art theatrical posters crafted in authentic Elizabethan woodcut and hand-pressed linocut aesthetic.</p>
+    
+    <div class="palette-strip">
+      <span class="swatch swatch-green"></span>
+      <span class="swatch swatch-red"></span>
+      <span class="swatch swatch-gold"></span>
+      <span class="swatch swatch-parchment"></span>
+      <span class="swatch-label">Official Westlake Palette: Green (#045643) &bull; Crimson (#C72037) &bull; Gold (#C5A059) &bull; Parchment (#F9F5EC)</span>
+    </div>
+  </header>
+
+  <div class="posters-grid">
+    
+    <!-- FOWL PLAY -->
+    <div class="poster-card">
+      <div class="card-title">Fowl Play</div>
+      <div class="card-subtitle">A High-Spirited Shakespearean Comedy</div>
+      <img src="fowl_play_poster.png" alt="Fowl Play Theatrical Poster" class="poster-preview-img">
+      <div class="card-specs">
+        <p><strong>Visual Concept:</strong> An Elizabethan rooster holding a split Comedy/Tragedy mask before a woodcut Globe Theatre sunburst, decorated with hand-drawn Renaissance filigree.</p>
+        <p><strong>Motto:</strong> <em>&ldquo;Virtute Experiamur &mdash; Let Courage Be Thy Test&rdquo;</em></p>
+        <p><strong>Literary Hook:</strong> <em>&ldquo;The bird of dawning singeth all night long, and comedy hath crown&rsquo;d our stage.&rdquo;</em></p>
+      </div>
+      <div class="btn-row">
+        <a href="fowl_play_poster.html" class="btn btn-primary" target="_blank">View Live HTML</a>
+        <a href="fowl_play_poster.png" class="btn btn-secondary" target="_blank">High-Res PNG</a>
+      </div>
+    </div>
+
+    <!-- BARDS OF A FEATHER -->
+    <div class="poster-card">
+      <div class="card-title">Bards of a Feather</div>
+      <div class="card-subtitle">A Classical Ensemble of Tragedy &amp; History</div>
+      <img src="bards_of_a_feather_poster.png" alt="Bards of a Feather Theatrical Poster" class="poster-preview-img">
+      <div class="card-specs">
+        <p><strong>Visual Concept:</strong> A noble swan and raven in embroidered Elizabethan doublets and ruffs, leaning over an open Shakespeare First Folio with a crimson quill and laurel boughs.</p>
+        <p><strong>Motto:</strong> <em>&ldquo;Virtute Experiamur &mdash; Let Courage Be Thy Test&rdquo;</em></p>
+        <p><strong>Literary Hook:</strong> <em>&ldquo;We few, we happy few, we band of brothers; for he to-day that sheds his blood with me shall be my brother.&rdquo;</em></p>
+      </div>
+      <div class="btn-row">
+        <a href="bards_of_a_feather_poster.html" class="btn btn-primary" target="_blank">View Live HTML</a>
+        <a href="bards_of_a_feather_poster.png" class="btn btn-secondary" target="_blank">High-Res PNG</a>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    <p>Designed for the Westlake Boys Shakespeare Company (Te Kura Tuarua o Ng&amacron; Taitamat&amacron;ne o Ururoto).</p>
+    <p>Dimensions: 1200 &times; 1700 px &bull; Print-Ready 300 DPI Vector Typography &bull; Hand-Crafted Intaglio Aesthetics.</p>
+  </footer>
+
+</body>
+</html>

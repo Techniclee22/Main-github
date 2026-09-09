@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" width="200" height="240">
+  <defs>
+    <!-- Filter for subtle drop shadow and vintage engraving feel -->
+    <filter id="badge-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- Outer Shield Contour -->
+  <path d="M 24,14 L 176,14 C 176,14 176,110 176,140 C 176,182 120,208 100,218 C 80,208 24,182 24,140 Z" 
+        fill="#045643" stroke="#D4AF37" stroke-width="4" filter="url(#badge-shadow)"/>
+  
+  <!-- Inner Gold Inset Border -->
+  <path d="M 32,22 L 168,22 C 168,22 168,106 168,135 C 168,172 118,198 100,206 C 82,198 32,172 32,135 Z" 
+        fill="#C72037" stroke="#FAF5EB" stroke-width="2.5"/>
+
+  <!-- Inner Dark Green Center Shield -->
+  <path d="M 40,30 L 160,30 C 160,30 160,102 160,130 C 160,162 115,188 100,195 C 85,188 40,162 40,130 Z" 
+        fill="#045643" stroke="#D4AF37" stroke-width="1.5"/>
+
+  <!-- Upper Crown / Mural Crown Crest -->
+  <g transform="translate(100, 48) scale(0.9)">
+    <path d="M -30,0 L -25,-18 L -12,-8 L 0,-24 L 12,-8 L 25,-18 L 30,0 Z" fill="#D4AF37" stroke="#FAF5EB" stroke-width="1.2"/>
+    <circle cx="-25" cy="-18" r="2.5" fill="#FAF5EB"/>
+    <circle cx="0" cy="-24" r="3" fill="#C72037" stroke="#FAF5EB" stroke-width="1"/>
+    <circle cx="25" cy="-18" r="2.5" fill="#FAF5EB"/>
+  </g>
+
+  <!-- Heraldic Swan Motif (Westlake North Shore / Lake Pupuke Symbol) -->
+  <g transform="translate(100, 115) scale(0.95)">
+    <!-- Water ripples beneath swan -->
+    <path d="M -45,35 Q -25,28 0,35 Q 25,28 45,35" fill="none" stroke="#FAF5EB" stroke-width="2" stroke-linecap="round"/>
+    <path d="M -35,42 Q -18,36 0,42 Q 18,36 35,42" fill="none" stroke="#D4AF37" stroke-width="1.8" stroke-linecap="round"/>
+
+    <!-- Swan Body & Graceful Neck -->
+    <path d="M -18,15 C -28,8 -32,-4 -22,-14 C -12,-24 -2,-28 -2,-38 C -2,-45 -8,-48 -12,-48 C -16,-48 -19,-45 -19,-41 C -21,-41 -24,-43 -23,-47 C -22,-52 -16,-56 -9,-56 C 2,-56 10,-48 10,-37 C 10,-24 -3,-16 -8,-6 C -12,2 -8,12 2,16 C 18,20 38,12 42,-2 C 34,4 24,6 16,4 C 28,1 36,-8 38,-18 C 30,-12 20,-11 12,-13 C 24,-20 30,-30 28,-36 C 20,-30 11,-26 2,-26 C -6,-16 -12,4 -18,15 Z" 
+          fill="#FAF5EB" stroke="#045643" stroke-width="1"/>
+    
+    <!-- Swan Beak (Crimson/Gold) -->
+    <path d="M -23,-47 L -32,-44 L -23,-41 Z" fill="#D4AF37" stroke="#C72037" stroke-width="1"/>
+    <!-- Eye dot -->
+    <circle cx="-13" cy="-49" r="1.5" fill="#045643"/>
+  </g>
+
+  <!-- Motto Banner Ribbon Below Shield -->
+  <g transform="translate(100, 218)">
+    <!-- Ribbon Shadow/Backing -->
+    <path d="M -85,6 L -95,-4 L -85,-14 L -70,-10 L 70,-10 L 85,-14 L 95,-4 L 85,6 L 70,2 L -70,2 Z" 
+          fill="#022E24" stroke="#D4AF37" stroke-width="1"/>
+    <!-- Main Ribbon Surface -->
+    <path d="M -75,2 L -80,-10 C -40,-16 40,-16 80,-10 L 75,2 C 40,-3 -40,-3 -75,2 Z" 
+          fill="#FAF5EB" stroke="#C72037" stroke-width="1.5"/>
+    <!-- Motto Text -->
+    <text x="0" y="-3" font-family="'Cinzel', 'Times New Roman', serif" font-size="7.5" font-weight="900" 
+          fill="#045643" text-anchor="middle" letter-spacing="1.8">VIRTUTE EXPERIAMUR</text>
+  </g>
+</svg>
