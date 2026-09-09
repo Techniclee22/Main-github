@@ -1,0 +1,167 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg-circle { fill: #045643; }
+      .crest-gold { fill: #C5A059; stroke: #C5A059; }
+      .crest-red { fill: #C72037; }
+      .crest-white { fill: #FAF5EB; }
+    </style>
+  </defs>
+
+  <!-- Background decorative geometric ring -->
+  <circle cx="300" cy="300" r="280" fill="none" stroke="#C5A059" stroke-width="2" stroke-dasharray="6 6" opacity="0.6"/>
+  <circle cx="300" cy="300" r="260" fill="none" stroke="#045643" stroke-width="3"/>
+  <circle cx="300" cy="300" r="248" fill="#FAF5EC"/>
+
+  <!-- Graphic Composition: The Two Noble Avian Bards -->
+  <!-- Center: Shakespeare First Folio / Open Book on Pedestal -->
+  <g id="open-folio" transform="translate(300, 360)">
+    <!-- Book pages background -->
+    <path d="M -90,40 C -45,30 0,38 0,38 C 0,38 45,30 90,40 L 95,-35 C 50,-45 0,-38 0,-38 C 0,-38 -50,-45 -95,-35 Z" 
+          fill="#FFFFFF" stroke="#045643" stroke-width="2.5"/>
+    <path d="M -85,46 C -45,36 0,44 0,44 C 0,44 45,36 85,46 L 90,-29 C 50,-39 0,-32 0,-32 C 0,-32 -50,-39 -90,-29 Z" 
+          fill="#FAF5EB" stroke="#C5A059" stroke-width="1"/>
+    <!-- Center spine line -->
+    <path d="M 0,-38 L 0,40" stroke="#C72037" stroke-width="2"/>
+    
+    <!-- Stylized script lines in book -->
+    <!-- Left page lines -->
+    <line x1="-75" y1="-20" x2="-15" y2="-17" stroke="#045643" stroke-width="2" opacity="0.6"/>
+    <line x1="-75" y1="-10" x2="-20" y2="-7" stroke="#045643" stroke-width="2" opacity="0.6"/>
+    <line x1="-75" y1="0" x2="-15" y2="3" stroke="#045643" stroke-width="2" opacity="0.6"/>
+    <line x1="-75" y1="10" x2="-25" y2="13" stroke="#045643" stroke-width="2" opacity="0.6"/>
+    <line x1="-75" y1="20" x2="-35" y2="23" stroke="#045643" stroke-width="2" opacity="0.6"/>
+
+    <!-- Right page lines -->
+    <line x1="15" y1="-17" x2="75" y2="-20" stroke="#045643" stroke-width="2" opacity="0.6"/>
+    <line x1="20" y1="-7" x2="75" y2="-10" stroke="#045643" stroke-width="2" opacity="0.6"/>
+    <line x1="15" y1="3" x2="75" y2="0" stroke="#045643" stroke-width="2" opacity="0.6"/>
+    <line x1="25" y1="13" x2="75" y2="10" stroke="#045643" stroke-width="2" opacity="0.6"/>
+    <line x1="35" y1="23" x2="75" y2="20" stroke="#045643" stroke-width="2" opacity="0.6"/>
+
+    <!-- Quill Pen diagonally crossing through the folio -->
+    <g transform="rotate(-30)">
+      <!-- Quill shaft -->
+      <path d="M 0,-85 C -8,-45 -4,30 0,65 L 2,75 L -1,78 L -1,65 C 3,30 6,-45 0,-85 Z" fill="#FAF5EB" stroke="#C5A059" stroke-width="2"/>
+      <!-- Crimson Quill Vane (Feather) -->
+      <path d="M 0,-85 C 25,-65 28,-15 5,20 L 0,15 C 2,-10 2,-40 0,-85 Z" fill="#C72037"/>
+      <path d="M 0,-85 C -25,-65 -28,-15 -5,20 L 0,15 C -2,-10 -2,-40 0,-85 Z" fill="#045643"/>
+      <!-- Nib in Gold -->
+      <path d="M -3,65 L 0,78 L 3,65 Z" fill="#C5A059"/>
+    </g>
+  </g>
+
+  <!-- LEFT: The Heraldic Westlake Swan (Noble, White, facing right) -->
+  <g id="bard-swan" transform="translate(195, 250)">
+    <!-- Body & Wing -->
+    <path d="M -75,90 C -95,60 -85,10 -50,-10 C -20,-25 15,-10 25,30 C 30,65 0,105 -50,110 Z" 
+          fill="#FAF5EB" stroke="#045643" stroke-width="3"/>
+    
+    <!-- Feather wing layers (Westlake Green & Gold embroidery) -->
+    <path d="M -45,15 C -25,25 -10,50 -15,85 C -35,88 -60,65 -45,15 Z" fill="#045643"/>
+    <path d="M -35,30 C -20,40 -8,60 -10,80 C -25,82 -45,65 -35,30 Z" fill="#C5A059"/>
+
+    <!-- Long graceful curved neck -->
+    <path d="M 10,25 C 15,-20 0,-70 25,-105 C 38,-120 58,-120 62,-102 C 65,-85 45,-60 40,-20 C 36,10 30,30 20,45 Z" 
+          fill="#FAF5EB" stroke="#045643" stroke-width="2.5"/>
+
+    <!-- Elizabethan Ruff on Swan -->
+    <g transform="translate(42, -50) rotate(25)">
+      <ellipse cx="0" cy="0" rx="22" ry="10" fill="#FFFFFF" stroke="#C5A059" stroke-width="2"/>
+      <line x1="-18" y1="0" x2="18" y2="0" stroke="#C72037" stroke-width="2"/>
+    </g>
+
+    <!-- Swan Head & Crown -->
+    <path d="M 45,-105 C 42,-120 58,-130 72,-122 C 82,-114 85,-98 75,-90 C 65,-82 50,-92 45,-105 Z" fill="#FAF5EB"/>
+    <!-- Beak (Gold & Crimson) -->
+    <path d="M 80,-105 L 115,-98 L 80,-92 Z" fill="#C5A059" stroke="#C72037" stroke-width="1.5"/>
+    <!-- Black face patch -->
+    <polygon points="68,-106 80,-105 78,-97 68,-98" fill="#02362A"/>
+    <!-- Eye -->
+    <circle cx="68" cy="-103" r="3" fill="#C72037"/>
+
+    <!-- Small Golden Laurels above head -->
+    <path d="M 50,-132 L 58,-124 L 66,-135 L 74,-124 L 82,-132" fill="none" stroke="#C5A059" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- RIGHT: The Raven / Crow Bard (Poetic, Black/Forest, facing left) -->
+  <g id="bard-raven" transform="translate(405, 250)">
+    <!-- Body & Wing -->
+    <path d="M 75,90 C 95,60 85,10 50,-10 C 20,-25 -15,-10 -25,30 C -30,65 0,105 50,110 Z" 
+          fill="#02362A" stroke="#045643" stroke-width="3"/>
+    
+    <!-- Feather wing layers (Crimson velvet & Gold embroidery) -->
+    <path d="M 45,15 C 25,25 10,50 15,85 C 35,88 60,65 45,15 Z" fill="#C72037"/>
+    <path d="M 35,30 C 20,40 8,60 10,80 C 25,82 45,65 35,30 Z" fill="#C5A059"/>
+
+    <!-- Raven Neck & Head -->
+    <path d="M -10,25 C -15,-20 0,-60 -20,-95 C -30,-112 -52,-112 -56,-96 C -60,-80 -40,-55 -35,-15 C -32,15 -25,30 -15,45 Z" 
+          fill="#02362A" stroke="#045643" stroke-width="2.5"/>
+
+    <!-- Elizabethan Ruff on Raven -->
+    <g transform="translate(-36, -45) rotate(-25)">
+      <ellipse cx="0" cy="0" rx="22" ry="10" fill="#FFFFFF" stroke="#C5A059" stroke-width="2"/>
+      <line x1="-18" y1="0" x2="18" y2="0" stroke="#045643" stroke-width="2"/>
+    </g>
+
+    <!-- Raven Head & Beak -->
+    <path d="M -40,-95 C -38,-112 -54,-122 -68,-115 C -78,-108 -80,-92 -70,-84 C -60,-76 -45,-84 -40,-95 Z" fill="#02362A"/>
+    <!-- Raven Powerful Beak (Gold with dark edge) -->
+    <path d="M -72,-98 L -115,-92 L -72,-85 Z" fill="#C5A059" stroke="#045643" stroke-width="1.5"/>
+    <!-- Eye -->
+    <circle cx="-60" cy="-97" r="5" fill="#FAF5EB"/>
+    <circle cx="-61" cy="-97" r="2.5" fill="#C72037"/>
+
+    <!-- Small Golden Laurels above head -->
+    <path d="M -45,-124 L -53,-116 L -61,-127 L -69,-116 L -77,-124" fill="none" stroke="#C5A059" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- BASE PEDESTAL & THEATRICAL MASKS -->
+  <g transform="translate(300, 475)">
+    <!-- Carved Architectural Pedestal -->
+    <path d="M -160,0 L 160,0 L 140,24 L -140,24 Z" fill="#045643" stroke="#C5A059" stroke-width="2"/>
+    <rect x="-175" y="24" width="350" height="10" rx="4" fill="#02362A" stroke="#C5A059" stroke-width="2"/>
+
+    <!-- Twin Theatre Masks placed centrally at the base -->
+    <!-- Comedy Mask (Left, Gold/Ivory) -->
+    <g transform="translate(-45, -10) rotate(-12) scale(0.65)">
+      <path d="M -35,-45 C 0,-55 35,-55 45,-40 C 55,-20 55,20 35,45 C 15,65 -15,65 -35,45 C -55,20 -55,-20 -35,-45 Z" 
+            fill="#FAF5EB" stroke="#045643" stroke-width="3"/>
+      <!-- Smile Eyes -->
+      <path d="M -22,-15 C -18,-25 -6,-25 -2,-15" fill="none" stroke="#045643" stroke-width="4" stroke-linecap="round"/>
+      <path d="M 6,-15 C 10,-25 22,-25 26,-15" fill="none" stroke="#045643" stroke-width="4" stroke-linecap="round"/>
+      <!-- Grin -->
+      <path d="M -24,15 C -10,38 14,38 28,15 C 18,22 2,24 -24,15 Z" fill="#045643"/>
+    </g>
+
+    <!-- Tragedy Mask (Right, Crimson) -->
+    <g transform="translate(45, -10) rotate(12) scale(0.65)">
+      <path d="M -35,-45 C 0,-55 35,-55 45,-40 C 55,-20 55,20 35,45 C 15,65 -15,65 -35,45 C -55,20 -55,-20 -35,-45 Z" 
+            fill="#C72037" stroke="#045643" stroke-width="3"/>
+      <!-- Sorrow Eyes -->
+      <ellipse cx="-14" cy="-12" rx="6" ry="7" fill="#FAF5EB"/>
+      <ellipse cx="14" cy="-12" rx="6" ry="7" fill="#FAF5EB"/>
+      <!-- Frown -->
+      <path d="M -20,25 C -10,12 10,12 20,25 C 12,20 -4,20 -20,25 Z" fill="#FAF5EB"/>
+    </g>
+  </g>
+
+  <!-- Surrounding Classical Laurel Wreath -->
+  <g fill="none" stroke="#C5A059" stroke-width="2.5" stroke-linecap="round" opacity="0.85">
+    <!-- Left arch -->
+    <path d="M 120,440 C 70,350 70,230 120,140"/>
+    <path d="M 112,390 C 90,385 86,370 95,365"/>
+    <path d="M 98,335 C 76,330 72,315 82,310"/>
+    <path d="M 92,280 C 70,275 68,260 78,252"/>
+    <path d="M 96,225 C 76,218 76,204 88,198"/>
+    <path d="M 110,175 C 92,165 96,150 108,145"/>
+
+    <!-- Right arch -->
+    <path d="M 480,440 C 530,350 530,230 480,140"/>
+    <path d="M 488,390 C 510,385 514,370 505,365"/>
+    <path d="M 502,335 C 524,330 528,315 518,310"/>
+    <path d="M 508,280 C 530,275 532,260 522,252"/>
+    <path d="M 504,225 C 524,218 524,204 512,198"/>
+    <path d="M 490,175 C 508,165 504,150 492,145"/>
+  </g>
+</svg>

@@ -2,559 +2,466 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Westlake Boys Shakespeare Company — Bards of a Feather</title>
+  <title>Bards of a Feather — Westlake Boys Shakespeare Company</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Cinzel+Decorative:wght@700;900&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400;1,600&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,700&family=UnifrakturMaguntia&family=Bebas+Neue&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
   <style>
     :root {
       --wbhs-green: #045643;
-      --wbhs-dark-green: #02362a;
+      --wbhs-dark-green: #022b22;
       --wbhs-red: #c72037;
-      --wbhs-crimson: #981224;
+      --wbhs-crimson: #9e1426;
       --wbhs-gold: #c5a059;
-      --wbhs-bright-gold: #dfb86c;
-      --parchment-base: #f9f5ec;
-      --parchment-dark: #eee4d0;
-      --ink-black: #121513;
+      --paper: #f4ecdc;
+      --ink: #101412;
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background-color: #1a1e1b;
+      background-color: #0d110f;
       display: flex;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
-      padding: 20px;
-      font-family: 'Cormorant Garamond', Georgia, serif;
+      padding: 30px;
+      font-family: 'IM Fell English', Georgia, serif;
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Print / Poster Dimension: Standard 1200 x 1700 */
-    .poster-container {
+    /* Screenprint poster sheet */
+    .poster-sheet {
       width: 1200px;
       height: 1700px;
+      background-color: var(--paper);
       position: relative;
-      background: radial-gradient(circle at 50% 35%, #fffdf9 0%, #f7f1e4 55%, #ecdcbf 100%);
-      color: var(--ink-black);
       overflow: hidden;
-      box-shadow: 0 25px 65px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(197, 160, 89, 0.4);
+      box-shadow: 0 35px 80px rgba(0,0,0,0.85);
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      padding: 44px;
+      padding: 60px 70px;
     }
 
-    /* Subtle authentic paper texture & vintage vignette */
-    .poster-container::before {
+    /* Authentic screenprint / risograph paper grain overlay */
+    .poster-sheet::before {
       content: "";
       position: absolute;
       inset: 0;
       background-image: 
-        radial-gradient(ellipse at 50% 50%, transparent 60%, rgba(199, 32, 55, 0.08) 85%, rgba(2, 54, 42, 0.32) 100%),
-        repeating-linear-gradient(45deg, rgba(0,0,0,0.012) 0px, rgba(0,0,0,0.012) 2px, transparent 2px, transparent 4px);
+        radial-gradient(circle at 50% 50%, transparent 60%, rgba(199,32,55,0.15) 100%),
+        repeating-linear-gradient(0deg, rgba(0,0,0,0.02) 0px, rgba(0,0,0,0.02) 1px, transparent 1px, transparent 3px);
       pointer-events: none;
-      z-index: 5;
+      z-index: 20;
     }
 
-    /* Outer Architectural Ornamental Borders */
-    .border-outer {
-      position: absolute;
-      inset: 18px;
-      border: 3.5px solid var(--wbhs-green);
-      pointer-events: none;
-      z-index: 6;
-    }
-
-    .border-gold-thin {
-      position: absolute;
-      inset: 26px;
-      border: 1.5px solid var(--wbhs-gold);
-      pointer-events: none;
-      z-index: 6;
-    }
-
-    .border-inner-crimson {
-      position: absolute;
-      inset: 34px;
-      border: 2px solid var(--wbhs-crimson);
-      pointer-events: none;
-      z-index: 6;
-    }
-
-    /* Corner Tudor-Rose / Fleur Ornaments */
-    .corner-ornament {
-      position: absolute;
-      width: 44px;
-      height: 44px;
-      z-index: 7;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--wbhs-gold);
-      font-size: 26px;
-    }
-    .top-left { top: 22px; left: 22px; }
-    .top-right { top: 22px; right: 22px; }
-    .bottom-left { bottom: 22px; left: 22px; }
-    .bottom-right { bottom: 22px; right: 22px; }
-
-    /* CONTENT LAYOUT */
-    .poster-content {
+    /* TOP HEADER: Clean editorial stamp */
+    .masthead {
       position: relative;
       z-index: 10;
-      height: 100%;
       display: flex;
-      flex-direction: column;
       justify-content: space-between;
-      align-items: center;
-      text-align: center;
+      align-items: flex-end;
+      border-bottom: 4px solid var(--wbhs-red);
+      padding-bottom: 14px;
     }
 
-    /* TOP HEADER SECTION */
-    .header-section {
-      width: 100%;
-      padding-top: 6px;
+    .school-id {
+      text-align: left;
     }
 
-    .school-crest-row {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 20px;
-      margin-bottom: 8px;
-    }
-
-    .crest-icon {
-      width: 58px;
-      height: 68px;
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));
-    }
-
-    .school-bar {
-      display: inline-block;
+    .school-title {
       font-family: 'Cinzel', serif;
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: 0.28em;
+      font-size: 19px;
+      font-weight: 900;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
       color: var(--wbhs-green);
-      border-bottom: 2px solid var(--wbhs-red);
-      padding-bottom: 4px;
+      line-height: 1.1;
     }
 
-    .company-title {
-      font-family: 'Cinzel Decorative', 'Cinzel', serif;
-      font-size: 28px;
-      font-weight: 900;
-      letter-spacing: 0.16em;
-      color: var(--wbhs-dark-green);
-      text-transform: uppercase;
-      margin-top: 6px;
-      text-shadow: 0 1px 1px rgba(0,0,0,0.1);
-    }
-
-    .motto-banner {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 15px;
-      margin-top: 5px;
-    }
-
-    .motto-banner .line {
-      height: 1px;
-      width: 90px;
-      background: linear-gradient(90deg, transparent, var(--wbhs-gold), transparent);
-    }
-
-    .motto-text {
-      font-family: 'Cormorant Garamond', serif;
+    .school-sub {
+      font-family: 'IM Fell English', serif;
       font-style: italic;
       font-size: 17px;
-      letter-spacing: 0.12em;
       color: var(--wbhs-crimson);
-      font-weight: 600;
+      margin-top: 3px;
     }
 
-    /* PRESENTATION BANNER */
-    .pres-badge {
-      margin-top: 10px;
-      background: var(--wbhs-green);
-      color: #faf5eb;
-      padding: 5px 24px;
-      border-radius: 2px;
+    .motto-stamp {
+      text-align: right;
       font-family: 'Cinzel', serif;
       font-size: 13px;
       letter-spacing: 0.22em;
       text-transform: uppercase;
-      border: 1px solid var(--wbhs-gold);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.18);
-      display: inline-block;
-    }
-
-    /* MAIN TITLE SECTION */
-    .title-section {
-      margin-top: 6px;
-      position: relative;
-    }
-
-    .sub-head-lead {
-      font-family: 'Cinzel', serif;
-      font-size: 16px;
-      letter-spacing: 0.35em;
-      color: var(--wbhs-crimson);
-      text-transform: uppercase;
-      font-weight: 700;
-      margin-bottom: 2px;
-    }
-
-    .main-title {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 84px;
-      font-weight: 900;
-      line-height: 0.95;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-      text-shadow: 2px 3px 0px rgba(197, 160, 89, 0.35), 4px 6px 15px rgba(0,0,0,0.12);
-    }
-
-    .title-bards {
-      color: var(--wbhs-green);
-    }
-
-    .title-feather {
-      color: var(--wbhs-crimson);
-    }
-
-    .title-of-a {
-      font-family: 'Cormorant Garamond', serif;
-      font-style: italic;
-      font-size: 46px;
-      font-weight: 600;
-      color: var(--wbhs-gold);
-      vertical-align: middle;
-      margin: 0 12px;
-      text-transform: lowercase;
-    }
-
-    .genre-banner {
-      display: inline-flex;
-      align-items: center;
-      gap: 16px;
-      margin-top: 4px;
-    }
-
-    .genre-banner span {
-      font-family: 'Cinzel', serif;
-      font-size: 15px;
-      letter-spacing: 0.3em;
-      text-transform: uppercase;
       color: var(--wbhs-dark-green);
       font-weight: 700;
     }
 
-    .genre-ornament {
-      color: var(--wbhs-crimson);
-      font-size: 14px;
+    .motto-latin {
+      color: var(--wbhs-green);
+      font-weight: 900;
     }
 
-    /* CENTRAL ARTWORK STAGE */
+    /* HUGE BOLD TYPOGRAPHY: Like a real screenprinted theatre festival poster */
+    .hero-title-zone {
+      position: relative;
+      z-index: 10;
+      margin-top: 30px;
+      text-align: left;
+    }
+
+    .category-kicker {
+      font-family: 'Cinzel', serif;
+      font-size: 16px;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      color: var(--wbhs-green);
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .category-kicker::after {
+      content: "";
+      height: 2px;
+      flex: 1;
+      background: var(--wbhs-green);
+    }
+
+    .title-display {
+      font-family: 'Cinzel', serif;
+      font-weight: 900;
+      font-size: 115px;
+      line-height: 0.85;
+      letter-spacing: -0.01em;
+      text-transform: uppercase;
+      color: var(--wbhs-green);
+      position: relative;
+    }
+
+    .title-row-feather {
+      color: var(--wbhs-red);
+      display: block;
+      margin-left: 90px;
+    }
+
+    .title-amp {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 60px;
+      font-weight: 400;
+      color: var(--wbhs-gold);
+      vertical-align: middle;
+      margin: 0 16px;
+      text-transform: lowercase;
+    }
+
+    /* CENTRAL GRAPHIC WORK: Screenprint-style woodcut silhouette */
     .artwork-stage {
       position: relative;
-      width: 100%;
-      max-width: 960px;
+      z-index: 10;
       margin: 10px 0;
       display: flex;
       justify-content: center;
       align-items: center;
     }
 
-    .art-frame {
+    .screenprint-art {
+      width: 780px;
+      height: 620px;
       position: relative;
-      border: 4px solid var(--wbhs-green);
-      padding: 10px;
-      background: #faf6ee;
-      box-shadow: 
-        0 0 0 2px var(--wbhs-gold),
-        0 14px 34px rgba(0, 0, 0, 0.28);
-      border-radius: 4px;
     }
 
-    .art-image {
-      display: block;
-      width: 820px;
-      height: 640px;
-      object-fit: cover;
-      object-position: center;
-      border: 1px solid rgba(0,0,0,0.2);
-      filter: contrast(1.05) saturate(1.02);
-    }
-
-    .art-caption-ribbon {
-      position: absolute;
-      bottom: -16px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--wbhs-green);
-      color: #fffdfa;
-      border: 1.5px solid var(--wbhs-gold);
-      padding: 6px 28px;
-      font-family: 'Cinzel', serif;
-      font-size: 13.5px;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      font-weight: 700;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-      white-space: nowrap;
-    }
-
-    /* DRAMATIC QUOTATION SECTION */
-    .quote-section {
-      max-width: 940px;
-      margin-top: 16px;
-      padding: 0 20px;
-    }
-
-    .quote-text {
-      font-family: 'Cormorant Garamond', Georgia, serif;
-      font-style: italic;
-      font-size: 24px;
-      font-weight: 600;
-      line-height: 1.35;
-      color: #2b302c;
-    }
-
-    .quote-attribution {
-      font-family: 'Cinzel', serif;
-      font-size: 13.5px;
-      letter-spacing: 0.2em;
-      color: var(--wbhs-crimson);
-      margin-top: 4px;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-
-    /* THEATRICAL DETAILS & CAST HIGHLIGHTS GRID */
-    .theatre-meta-grid {
-      width: 100%;
-      max-width: 1020px;
+    /* EDITORIAL MANIFESTO BLOCK */
+    .manifesto-zone {
+      position: relative;
+      z-index: 10;
       display: grid;
-      grid-template-columns: 1fr 1.3fr 1fr;
-      gap: 16px;
-      margin-top: 12px;
-      border-top: 1.5px solid rgba(197, 160, 89, 0.5);
-      border-bottom: 1.5px solid rgba(197, 160, 89, 0.5);
-      padding: 12px 10px;
-      background: rgba(255, 255, 255, 0.45);
+      grid-template-columns: 1.4fr 1fr;
+      gap: 40px;
+      border-top: 3px solid var(--wbhs-red);
+      padding-top: 24px;
+      text-align: left;
     }
 
-    .meta-box {
+    .manifesto-body {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 26px;
+      line-height: 1.25;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .manifesto-body strong {
+      color: var(--wbhs-green);
+      font-weight: 700;
+    }
+
+    .manifesto-body em {
+      color: var(--wbhs-red);
+      font-style: italic;
+    }
+
+    .company-identity-badge {
       display: flex;
       flex-direction: column;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .meta-box.middle {
-      border-left: 1px solid rgba(197, 160, 89, 0.4);
-      border-right: 1px solid rgba(197, 160, 89, 0.4);
-      padding: 0 14px;
-    }
-
-    .meta-label {
-      font-family: 'Cinzel', serif;
-      font-size: 12px;
-      letter-spacing: 0.25em;
-      text-transform: uppercase;
-      color: var(--wbhs-green);
-      font-weight: 800;
-      margin-bottom: 3px;
-    }
-
-    .meta-value-main {
-      font-family: 'Playfair Display', serif;
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--wbhs-crimson);
-      letter-spacing: 0.02em;
-    }
-
-    .meta-value-sub {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 16px;
-      color: #3f4742;
-      font-weight: 600;
-    }
-
-    /* FOOTER / ADMISSION & VENUE BAR */
-    .footer-section {
-      width: 100%;
-      margin-top: 10px;
-      padding-bottom: 4px;
-    }
-
-    .venue-strip {
-      background: var(--wbhs-dark-green);
-      border: 1.5px solid var(--wbhs-gold);
-      padding: 10px 24px;
-      display: flex;
       justify-content: space-between;
-      align-items: center;
-      color: #faf5ea;
-      border-radius: 3px;
-      box-shadow: 0 4px 12px rgba(2, 54, 42, 0.25);
+      border-left: 2px solid var(--wbhs-gold);
+      padding-left: 28px;
     }
 
-    .venue-title {
-      font-family: 'Cinzel', serif;
-      font-size: 16px;
-      letter-spacing: 0.16em;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-
-    .venue-address {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 16px;
-      color: #e4dfd3;
-      letter-spacing: 0.05em;
-    }
-
-    .ticket-badge {
-      background: var(--wbhs-red);
-      border: 1px solid var(--wbhs-gold);
-      padding: 5px 16px;
+    .ensemble-role {
       font-family: 'Cinzel', serif;
       font-size: 13px;
-      letter-spacing: 0.14em;
-      font-weight: 700;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
-      color: #fff;
+      color: var(--wbhs-green);
+      font-weight: 900;
+      margin-bottom: 4px;
     }
 
-    .colophon {
+    .ensemble-desc {
+      font-family: 'IM Fell English', serif;
+      font-size: 16px;
+      color: #38423d;
+      line-height: 1.35;
+    }
+
+    /* FOOTER STAMP */
+    .footer-stamp {
+      position: relative;
+      z-index: 10;
       display: flex;
       justify-content: space-between;
-      width: 100%;
-      padding: 8px 12px 0;
+      align-items: center;
+      background: var(--wbhs-dark-green);
+      color: var(--paper);
+      padding: 16px 26px;
+      border-radius: 2px;
+      margin-top: 10px;
+    }
+
+    .footer-left {
+      text-align: left;
+    }
+
+    .footer-tagline {
       font-family: 'Cinzel', serif;
-      font-size: 11px;
+      font-size: 14px;
       letter-spacing: 0.18em;
-      color: #5a665f;
       text-transform: uppercase;
+      font-weight: 900;
+      color: #faf5eb;
+    }
+
+    .footer-detail {
+      font-family: 'IM Fell English', serif;
+      font-style: italic;
+      font-size: 15px;
+      color: var(--wbhs-gold);
+      margin-top: 2px;
+    }
+
+    .footer-right {
+      text-align: right;
+      font-family: 'Cinzel', serif;
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #fff;
     }
   </style>
 </head>
 <body>
 
-  <div class="poster-container">
-    <!-- Ornate Borders -->
-    <div class="border-outer"></div>
-    <div class="border-gold-thin"></div>
-    <div class="border-inner-crimson"></div>
-
-    <!-- Corner Accents -->
-    <div class="corner-ornament top-left">&#10047;</div>
-    <div class="corner-ornament top-right">&#10047;</div>
-    <div class="corner-ornament bottom-left">&#10047;</div>
-    <div class="corner-ornament bottom-right">&#10047;</div>
-
-    <div class="poster-content">
-      
-      <!-- TOP HEADER -->
-      <div class="header-section">
-        <div class="school-crest-row">
-          <img src="assets/wbhs_crest.svg" alt="Westlake Boys High School Crest" class="crest-icon">
-          <div>
-            <div class="school-bar">Westlake Boys High School</div>
-            <div class="company-title">BARDS OF A FEATHER</div>
-          </div>
-          <img src="assets/wbhs_crest.svg" alt="Westlake Boys High School Crest" class="crest-icon">
-        </div>
-
-        <div class="motto-banner">
-          <div class="line"></div>
-          <div class="motto-text">Virtute Experiamur &mdash; Let Courage Be Thy Test</div>
-          <div class="line"></div>
-        </div>
-
-        <div class="pres-badge">Westlake Boys Shakespeare Company &bull; 2026 Season</div>
+  <div class="poster-sheet">
+    
+    <!-- MASTHEAD -->
+    <div class="masthead">
+      <div class="school-id">
+        <div class="school-title">Westlake Boys High School</div>
+        <div class="school-sub">Te Kura Tuarua o Ngā Taitamatāne o Ururoto &bull; Drama &amp; Theatre Arts</div>
       </div>
-
-      <!-- MAIN TITLE -->
-      <div class="title-section">
-        <div class="sub-head-lead">Verse &bull; Passion &bull; Brotherhood</div>
-        <div class="main-title">
-          <span class="title-bards">BARDS</span>
-          <span class="title-of-a">of a</span>
-          <span class="title-feather">FEATHER</span>
-        </div>
-        <div class="genre-banner">
-          <span class="genre-ornament">&#9884;</span>
-          <span>A Classical Ensemble of Shakespearean Tragedy &amp; History</span>
-          <span class="genre-ornament">&#9884;</span>
-        </div>
+      <div class="motto-stamp">
+        <div>Official Company Poster</div>
+        <div class="motto-latin">Virtute Experiamur</div>
       </div>
-
-      <!-- CENTER ART STAGE -->
-      <div class="artwork-stage">
-        <div class="art-frame">
-          <img src="assets/bards_of_a_feather_woodcut_art.png" alt="Bards of a Feather Elizabethan Swan and Raven Art" class="art-image">
-          <div class="art-caption-ribbon">Featuring the Westlake Senior Shakespeare Troupe</div>
-        </div>
-      </div>
-
-      <!-- DRAMATIC QUOTE -->
-      <div class="quote-section">
-        <p class="quote-text">
-          &ldquo;We few, we happy few, we band of brothers; for he to-day that sheds his blood with me shall be my brother.&rdquo;
-        </p>
-        <div class="quote-attribution">&mdash; William Shakespeare, Henry V (Act IV, Scene 3)</div>
-      </div>
-
-      <!-- METADATA & CAST -->
-      <div class="theatre-meta-grid">
-        <div class="meta-box">
-          <span class="meta-label">Season Dates</span>
-          <span class="meta-value-main">25 &ndash; 28 June 2026</span>
-          <span class="meta-value-sub">Evening Shows 7:30 PM &bull; Sunday Twilight 5:00 PM</span>
-        </div>
-        <div class="meta-box middle">
-          <span class="meta-label">Venue</span>
-          <span class="meta-value-main">Westlake Boys Auditorium</span>
-          <span class="meta-value-sub">30 Forrest Hill Road, Takapuna, Auckland</span>
-        </div>
-        <div class="meta-box">
-          <span class="meta-label">Artistic Direction</span>
-          <span class="meta-value-main">Westlake Drama Arts</span>
-          <span class="meta-value-sub">Winner of 35+ Regional &amp; National Awards</span>
-        </div>
-      </div>
-
-      <!-- FOOTER STRIP -->
-      <div class="footer-section">
-        <div class="venue-strip">
-          <div>
-            <div class="venue-title">Westlake Productions &bull; In Association with SGCNZ</div>
-            <div class="venue-address">Bookings online via iTicket &bull; School Box Office open daily from 8:30 AM</div>
-          </div>
-          <div class="ticket-badge">Tickets &bull; $15 &ndash; $25</div>
-        </div>
-        <div class="colophon">
-          <span>Printed by Westlake Boys High School Drama Dept</span>
-          <span>Te Kura Tuarua o Ng&amacron; Taitamat&amacron;ne o Ururoto</span>
-          <span>In Arte Excellere</span>
-        </div>
-      </div>
-
     </div>
+
+    <!-- MAIN BRAND TITLE -->
+    <div class="hero-title-zone">
+      <div class="category-kicker">Classical Verse &amp; Tragedy Company</div>
+      <div class="title-display">
+        BARDS <span class="title-amp">of a</span>
+        <span class="title-row-feather">FEATHER.</span>
+      </div>
+    </div>
+
+    <!-- HERO ARTWORK: High-impact screenprinted woodblock style SVG -->
+    <div class="artwork-stage">
+      <svg class="screenprint-art" viewBox="0 0 780 620" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <pattern id="halftone-bards" width="12" height="12" patternUnits="userSpaceOnUse">
+            <circle cx="6" cy="6" r="2.2" fill="#c72037" opacity="0.25"/>
+          </pattern>
+        </defs>
+
+        <!-- Dynamic split background in Westlake crimson and cream -->
+        <rect x="0" y="0" width="780" height="620" fill="#c72037"/>
+        <polygon points="0,0 780,0 780,480 0,220" fill="#f4ecdc"/>
+        <rect x="0" y="0" width="780" height="620" fill="url(#halftone-bards)"/>
+
+        <!-- COMPOSITION: Two Noble Avian Bards (Swan & Raven) Facing across an Open Folio -->
+        <!-- Center Open First Folio & Crimson Quill -->
+        <g id="open-folio" transform="translate(390, 390)">
+          <!-- Open pages -->
+          <path d="M -110,45 C -55,35 0,42 0,42 C 0,42 55,35 110,45 L 115,-40 C 60,-50 0,-42 0,-42 C 0,-42 -60,-50 -115,-40 Z" 
+                fill="#ffffff" stroke="#045643" stroke-width="4"/>
+          <line x1="0" y1="-42" x2="0" y2="45" stroke="#c72037" stroke-width="3"/>
+          
+          <!-- Text lines -->
+          <line x1="-95" y1="-25" x2="-20" y2="-22" stroke="#045643" stroke-width="2.5" opacity="0.7"/>
+          <line x1="-95" y1="-12" x2="-25" y2="-9" stroke="#045643" stroke-width="2.5" opacity="0.7"/>
+          <line x1="-95" y1="2" x2="-20" y2="5" stroke="#045643" stroke-width="2.5" opacity="0.7"/>
+          <line x1="-95" y1="16" x2="-35" y2="19" stroke="#045643" stroke-width="2.5" opacity="0.7"/>
+
+          <line x1="20" y1="-22" x2="95" y2="-25" stroke="#045643" stroke-width="2.5" opacity="0.7"/>
+          <line x1="25" y1="-9" x2="95" y2="-12" stroke="#045643" stroke-width="2.5" opacity="0.7"/>
+          <line x1="20" y1="5" x2="95" y2="2" stroke="#045643" stroke-width="2.5" opacity="0.7"/>
+          <line x1="35" y1="19" x2="95" y2="16" stroke="#045643" stroke-width="2.5" opacity="0.7"/>
+
+          <!-- Large Crimson Quill Piercing Center -->
+          <g transform="rotate(-35)">
+            <path d="M 0,-110 C -12,-60 -6,40 0,90 L 3,105 L -2,108 L -1,90 C 4,40 8,-60 0,-110 Z" fill="#f4ecdc" stroke="#c5a059" stroke-width="3"/>
+            <path d="M 0,-110 C 35,-80 40,-20 8,30 L 0,22 C 3,-15 3,-55 0,-110 Z" fill="#c72037"/>
+            <path d="M 0,-110 C -35,-80 -40,-20 -8,30 L 0,22 C -3,-15 -3,-55 0,-110 Z" fill="#045643"/>
+            <polygon points="-4,90 0,108 4,90" fill="#c5a059"/>
+          </g>
+        </g>
+
+        <!-- LEFT: The Westlake Swan (Noble, White, Green Wing Accents) -->
+        <g id="bard-swan" transform="translate(250, 270)">
+          <!-- Body and swept back wing -->
+          <path d="M -90,110 C -120,70 -110,10 -60,-15 C -25,-30 20,-15 30,35 C 38,80 0,130 -60,135 Z" 
+                fill="#f4ecdc" stroke="#045643" stroke-width="4"/>
+          <!-- Wing covert feathers in green & gold -->
+          <path d="M -55,20 C -30,30 -10,65 -15,105 C -45,110 -75,80 -55,20 Z" fill="#045643"/>
+          <path d="M -40,40 C -20,50 -5,75 -8,100 C -30,102 -55,80 -40,40 Z" fill="#c5a059"/>
+
+          <!-- Graceful S-neck -->
+          <path d="M 12,30 C 18,-25 0,-85 30,-130 C 45,-148 70,-148 75,-125 C 78,-105 55,-75 48,-25 C 44,12 36,36 24,55 Z" 
+                fill="#f4ecdc" stroke="#045643" stroke-width="3"/>
+
+          <!-- Swan Elizabethan Ruff -->
+          <g transform="translate(50, -65) rotate(25)">
+            <ellipse cx="0" cy="0" rx="28" ry="12" fill="#ffffff" stroke="#c5a059" stroke-width="3"/>
+            <line x1="-22" y1="0" x2="22" y2="0" stroke="#c72037" stroke-width="3"/>
+          </g>
+
+          <!-- Head & Beak -->
+          <path d="M 55,-130 C 52,-150 72,-162 90,-152 C 102,-142 105,-122 92,-112 C 80,-102 62,-114 55,-130 Z" fill="#f4ecdc"/>
+          <polygon points="98,-130 145,-122 98,-115" fill="#c5a059" stroke="#c72037" stroke-width="2"/>
+          <polygon points="85,-132 100,-130 98,-120 85,-122" fill="#022b22"/>
+          <circle cx="85" cy="-127" r="4" fill="#c72037"/>
+
+          <!-- Laurel Crown (Golden) -->
+          <path d="M 60,-165 L 70,-155 L 80,-170 L 90,-155 L 100,-165" fill="none" stroke="#c5a059" stroke-width="3" stroke-linecap="round"/>
+        </g>
+
+        <!-- RIGHT: The Raven Bard (Poetic, Black/Forest Green, Crimson Mantle) -->
+        <g id="bard-raven" transform="translate(530, 270)">
+          <!-- Body and swept back wing -->
+          <path d="M 90,110 C 120,70 110,10 60,-15 C 25,-30 -20,-15 -30,35 C -38,80 0,130 60,135 Z" 
+                fill="#022b22" stroke="#045643" stroke-width="4"/>
+          <!-- Wing covert feathers in crimson & gold -->
+          <path d="M 55,20 C 30,30 10,65 15,105 C 45,110 75,80 55,20 Z" fill="#c72037"/>
+          <path d="M 40,40 C 20,50 5,75 8,100 C 30,102 55,80 40,40 Z" fill="#c5a059"/>
+
+          <!-- Neck & Head -->
+          <path d="M -12,30 C -18,-25 0,-75 -25,-120 C -38,-140 -65,-140 -70,-120 C -75,-100 -50,-70 -44,-20 C -40,18 -32,36 -20,55 Z" 
+                fill="#022b22" stroke="#045643" stroke-width="3"/>
+
+          <!-- Raven Elizabethan Ruff -->
+          <g transform="translate(-45, -60) rotate(-25)">
+            <ellipse cx="0" cy="0" rx="28" ry="12" fill="#ffffff" stroke="#c5a059" stroke-width="3"/>
+            <line x1="-22" y1="0" x2="22" y2="0" stroke="#045643" stroke-width="3"/>
+          </g>
+
+          <!-- Head & Powerful Beak -->
+          <path d="M -50,-120 C -48,-140 -68,-152 -86,-144 C -98,-135 -100,-115 -88,-105 C -75,-95 -58,-106 -50,-120 Z" fill="#022b22"/>
+          <polygon points="-90,-124 -145,-116 -90,-108" fill="#c5a059" stroke="#045643" stroke-width="2"/>
+          <circle cx="-75" cy="-122" r="6" fill="#f4ecdc"/>
+          <circle cx="-76" cy="-122" r="3" fill="#c72037"/>
+
+          <!-- Laurel Crown (Golden) -->
+          <path d="M -55,-155 L -65,-145 L -75,-160 L -85,-145 L -95,-155" fill="none" stroke="#c5a059" stroke-width="3" stroke-linecap="round"/>
+        </g>
+
+        <!-- Base Pedestal & Twin Masks -->
+        <g transform="translate(390, 520)">
+          <line x1="-310" y1="0" x2="310" y2="0" stroke="#045643" stroke-width="6" stroke-linecap="round"/>
+          <circle cx="-310" cy="0" r="14" fill="#c72037"/>
+          <circle cx="310" cy="0" r="14" fill="#045643"/>
+
+          <!-- Twin Comedy/Tragedy Masks -->
+          <g transform="translate(-55, -15) rotate(-10) scale(0.75)">
+            <path d="M -35,-45 C 0,-55 35,-55 45,-40 C 55,-20 55,20 35,45 C 15,65 -15,65 -35,45 C -55,20 -55,-20 -35,-45 Z" 
+                  fill="#f4ecdc" stroke="#045643" stroke-width="4"/>
+            <path d="M -22,-15 C -18,-25 -6,-25 -2,-15" fill="none" stroke="#045643" stroke-width="4" stroke-linecap="round"/>
+            <path d="M 6,-15 C 10,-25 22,-25 26,-15" fill="none" stroke="#045643" stroke-width="4" stroke-linecap="round"/>
+            <path d="M -24,15 C -10,38 14,38 28,15 C 18,22 2,24 -24,15 Z" fill="#045643"/>
+          </g>
+
+          <g transform="translate(55, -15) rotate(10) scale(0.75)">
+            <path d="M -35,-45 C 0,-55 35,-55 45,-40 C 55,-20 55,20 35,45 C 15,65 -15,65 -35,45 C -55,20 -55,-20 -35,-45 Z" 
+                  fill="#c72037" stroke="#045643" stroke-width="4"/>
+            <ellipse cx="-14" cy="-12" rx="6" ry="7" fill="#f4ecdc"/>
+            <ellipse cx="14" cy="-12" rx="6" ry="7" fill="#f4ecdc"/>
+            <path d="M -20,25 C -10,12 10,12 20,25 C 12,20 -4,20 -20,25 Z" fill="#f4ecdc"/>
+          </g>
+        </g>
+
+        <!-- Bold Graphic Monogram in Corner -->
+        <g transform="translate(640, 80)">
+          <rect x="0" y="0" width="85" height="85" fill="#045643"/>
+          <text x="42" y="58" font-family="'Cinzel', serif" font-weight="900" font-size="44" fill="#ffffff" text-anchor="middle">BF</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- MANIFESTO & COMPANY INFO -->
+    <div class="manifesto-zone">
+      <div class="manifesto-body">
+        <strong>Bards of a Feather</strong> is Westlake&rsquo;s flagship classical verse ensemble. Dedicated to the power of the spoken word, tragic gravitas, and theatrical brotherhood &mdash; <em>&ldquo;we few, we happy few, we band of brothers&rdquo;</em> united by Shakespearean text.
+      </div>
+      <div class="company-identity-badge">
+        <div>
+          <div class="ensemble-role">Ensemble &bull; Focus</div>
+          <div class="ensemble-desc">Years 11&ndash;13 Senior Troupe &bull; Classical Verse Speaking, Stage Combat &amp; Textual Analysis</div>
+        </div>
+        <div>
+          <div class="ensemble-role">Affiliation</div>
+          <div class="ensemble-desc">Westlake Performing Arts &bull; Premier Competitors in the SGCNZ Festival</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FOOTER STAMP -->
+    <div class="footer-stamp">
+      <div class="footer-left">
+        <div class="footer-tagline">Westlake Boys Shakespeare Company &bull; Auckland, New Zealand</div>
+        <div class="footer-detail">Masterclasses &amp; Auditions in Term 1 &bull; 30 Forrest Hill Road, Takapuna</div>
+      </div>
+      <div class="footer-right">
+        <div>Virtute Experiamur</div>
+        <div style="color: var(--wbhs-gold); margin-top:2px;">Est. 1962 &bull; WBHS Drama</div>
+      </div>
+    </div>
+
   </div>
 
 </body>

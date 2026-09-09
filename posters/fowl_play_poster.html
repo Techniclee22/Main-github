@@ -2,559 +2,412 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Westlake Boys Shakespeare Company — Fowl Play</title>
+  <title>Fowl Play — Westlake Boys Shakespeare Company</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Cinzel+Decorative:wght@700;900&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400;1,600&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,700&family=UnifrakturMaguntia&family=Bebas+Neue&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
   <style>
     :root {
       --wbhs-green: #045643;
-      --wbhs-dark-green: #02362a;
+      --wbhs-dark-green: #022b22;
       --wbhs-red: #c72037;
-      --wbhs-crimson: #981224;
+      --wbhs-crimson: #9e1426;
       --wbhs-gold: #c5a059;
-      --wbhs-bright-gold: #dfb86c;
-      --parchment-base: #f9f5ec;
-      --parchment-dark: #eee4d0;
-      --ink-black: #121513;
+      --paper: #f4ecdc;
+      --ink: #101412;
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background-color: #1a1e1b;
+      background-color: #0d110f;
       display: flex;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
-      padding: 20px;
-      font-family: 'Cormorant Garamond', Georgia, serif;
+      padding: 30px;
+      font-family: 'IM Fell English', Georgia, serif;
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Print / Poster Dimension: Standard 1200 x 1700 (aspect ratio approx 1:1.414 / A-series ratio) */
-    .poster-container {
+    /* Screenprint poster sheet */
+    .poster-sheet {
       width: 1200px;
       height: 1700px;
+      background-color: var(--paper);
       position: relative;
-      background: radial-gradient(circle at 50% 35%, #fffdf8 0%, #f7f1e3 55%, #eddcc2 100%);
-      color: var(--ink-black);
       overflow: hidden;
-      box-shadow: 0 25px 65px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(197, 160, 89, 0.4);
+      box-shadow: 0 35px 80px rgba(0,0,0,0.85);
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      padding: 44px;
+      padding: 60px 70px;
     }
 
-    /* Subtle authentic paper texture & vintage vignette */
-    .poster-container::before {
+    /* Authentic screenprint / risograph paper grain overlay */
+    .poster-sheet::before {
       content: "";
       position: absolute;
       inset: 0;
       background-image: 
-        radial-gradient(ellipse at 50% 50%, transparent 60%, rgba(4, 86, 67, 0.08) 85%, rgba(2, 54, 42, 0.3) 100%),
-        repeating-linear-gradient(45deg, rgba(0,0,0,0.012) 0px, rgba(0,0,0,0.012) 2px, transparent 2px, transparent 4px);
+        radial-gradient(circle at 50% 50%, transparent 60%, rgba(2,43,34,0.18) 100%),
+        repeating-linear-gradient(0deg, rgba(0,0,0,0.02) 0px, rgba(0,0,0,0.02) 1px, transparent 1px, transparent 3px);
       pointer-events: none;
-      z-index: 5;
+      z-index: 20;
     }
 
-    /* Outer Architectural Ornamental Borders */
-    .border-outer {
-      position: absolute;
-      inset: 18px;
-      border: 3.5px solid var(--wbhs-green);
-      pointer-events: none;
-      z-index: 6;
-    }
-
-    .border-gold-thin {
-      position: absolute;
-      inset: 26px;
-      border: 1.5px solid var(--wbhs-gold);
-      pointer-events: none;
-      z-index: 6;
-    }
-
-    .border-inner-crimson {
-      position: absolute;
-      inset: 34px;
-      border: 2px dashed rgba(199, 32, 55, 0.75);
-      pointer-events: none;
-      z-index: 6;
-    }
-
-    /* Corner Tudor-Rose / Fleur Ornaments */
-    .corner-ornament {
-      position: absolute;
-      width: 44px;
-      height: 44px;
-      z-index: 7;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--wbhs-gold);
-      font-size: 26px;
-    }
-    .top-left { top: 22px; left: 22px; }
-    .top-right { top: 22px; right: 22px; }
-    .bottom-left { bottom: 22px; left: 22px; }
-    .bottom-right { bottom: 22px; right: 22px; }
-
-    /* CONTENT LAYOUT */
-    .poster-content {
+    /* TOP HEADER: Clean editorial stamp */
+    .masthead {
       position: relative;
       z-index: 10;
-      height: 100%;
       display: flex;
-      flex-direction: column;
       justify-content: space-between;
-      align-items: center;
-      text-align: center;
+      align-items: flex-end;
+      border-bottom: 4px solid var(--wbhs-green);
+      padding-bottom: 14px;
     }
 
-    /* TOP HEADER SECTION */
-    .header-section {
-      width: 100%;
-      padding-top: 6px;
+    .school-id {
+      text-align: left;
     }
 
-    .school-crest-row {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 20px;
-      margin-bottom: 8px;
-    }
-
-    .crest-icon {
-      width: 58px;
-      height: 68px;
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));
-    }
-
-    .school-bar {
-      display: inline-block;
+    .school-title {
       font-family: 'Cinzel', serif;
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: 0.28em;
+      font-size: 19px;
+      font-weight: 900;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
       color: var(--wbhs-green);
-      border-bottom: 2px solid var(--wbhs-red);
-      padding-bottom: 4px;
+      line-height: 1.1;
     }
 
-    .company-title {
-      font-family: 'Cinzel Decorative', 'Cinzel', serif;
-      font-size: 28px;
-      font-weight: 900;
-      letter-spacing: 0.16em;
-      color: var(--wbhs-dark-green);
-      text-transform: uppercase;
-      margin-top: 6px;
-      text-shadow: 0 1px 1px rgba(0,0,0,0.1);
-    }
-
-    .motto-banner {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 15px;
-      margin-top: 5px;
-    }
-
-    .motto-banner .line {
-      height: 1px;
-      width: 90px;
-      background: linear-gradient(90deg, transparent, var(--wbhs-gold), transparent);
-    }
-
-    .motto-text {
-      font-family: 'Cormorant Garamond', serif;
+    .school-sub {
+      font-family: 'IM Fell English', serif;
       font-style: italic;
       font-size: 17px;
-      letter-spacing: 0.12em;
       color: var(--wbhs-crimson);
-      font-weight: 600;
+      margin-top: 3px;
     }
 
-    /* PRESENTATION BANNER */
-    .pres-badge {
-      margin-top: 10px;
-      background: var(--wbhs-green);
-      color: #faf5eb;
-      padding: 5px 24px;
-      border-radius: 2px;
+    .motto-stamp {
+      text-align: right;
       font-family: 'Cinzel', serif;
       font-size: 13px;
       letter-spacing: 0.22em;
       text-transform: uppercase;
-      border: 1px solid var(--wbhs-gold);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.18);
-      display: inline-block;
-    }
-
-    /* MAIN TITLE SECTION */
-    .title-section {
-      margin-top: 6px;
-      position: relative;
-    }
-
-    .sub-head-lead {
-      font-family: 'Cinzel', serif;
-      font-size: 16px;
-      letter-spacing: 0.35em;
-      color: var(--wbhs-crimson);
-      text-transform: uppercase;
-      font-weight: 700;
-      margin-bottom: 2px;
-    }
-
-    .main-title {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 108px;
-      font-weight: 900;
-      line-height: 0.92;
-      letter-spacing: -0.01em;
-      text-transform: uppercase;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 22px;
-      text-shadow: 2px 3px 0px rgba(197, 160, 89, 0.35), 4px 6px 15px rgba(0,0,0,0.12);
-    }
-
-    .title-fowl {
-      color: var(--wbhs-green);
-    }
-
-    .title-amp {
-      font-family: 'Cormorant Garamond', italic, serif;
-      font-style: italic;
-      font-weight: 400;
-      font-size: 80px;
-      color: var(--wbhs-gold);
-    }
-
-    .title-play {
-      color: var(--wbhs-red);
-    }
-
-    .genre-banner {
-      display: inline-flex;
-      align-items: center;
-      gap: 16px;
-      margin-top: 4px;
-    }
-
-    .genre-banner span {
-      font-family: 'Cinzel', serif;
-      font-size: 15px;
-      letter-spacing: 0.3em;
-      text-transform: uppercase;
       color: var(--wbhs-dark-green);
       font-weight: 700;
     }
 
-    .genre-ornament {
-      color: var(--wbhs-crimson);
-      font-size: 14px;
+    .motto-latin {
+      color: var(--wbhs-red);
+      font-weight: 900;
     }
 
-    /* CENTRAL ARTWORK STAGE */
+    /* HUGE BOLD TYPOGRAPHY: Like a real screenprinted theatre festival poster */
+    .hero-title-zone {
+      position: relative;
+      z-index: 10;
+      margin-top: 30px;
+      text-align: left;
+    }
+
+    .category-kicker {
+      font-family: 'Cinzel', serif;
+      font-size: 16px;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      color: var(--wbhs-red);
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .category-kicker::after {
+      content: "";
+      height: 2px;
+      flex: 1;
+      background: var(--wbhs-red);
+    }
+
+    .title-display {
+      font-family: 'Cinzel', serif;
+      font-weight: 900;
+      font-size: 148px;
+      line-height: 0.82;
+      letter-spacing: -0.02em;
+      text-transform: uppercase;
+      color: var(--wbhs-green);
+      position: relative;
+    }
+
+    .title-row-play {
+      color: var(--wbhs-red);
+      display: block;
+      margin-left: 120px;
+    }
+
+    /* CENTRAL GRAPHIC WORK: Screenprint-style woodcut silhouette */
     .artwork-stage {
       position: relative;
-      width: 100%;
-      max-width: 960px;
+      z-index: 10;
       margin: 10px 0;
       display: flex;
       justify-content: center;
       align-items: center;
     }
 
-    .art-frame {
+    .screenprint-art {
+      width: 780px;
+      height: 620px;
       position: relative;
-      border: 4px solid var(--wbhs-green);
-      padding: 10px;
-      background: #faf6ee;
-      box-shadow: 
-        0 0 0 2px var(--wbhs-gold),
-        0 14px 34px rgba(0, 0, 0, 0.28);
-      border-radius: 4px;
     }
 
-    .art-image {
-      display: block;
-      width: 820px;
-      height: 640px;
-      object-fit: cover;
-      object-position: center;
-      border: 1px solid rgba(0,0,0,0.2);
-      filter: contrast(1.05) saturate(1.02);
-    }
-
-    .art-caption-ribbon {
-      position: absolute;
-      bottom: -16px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--wbhs-red);
-      color: #fffdfa;
-      border: 1.5px solid var(--wbhs-gold);
-      padding: 6px 28px;
-      font-family: 'Cinzel', serif;
-      font-size: 13.5px;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      font-weight: 700;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-      white-space: nowrap;
-    }
-
-    /* DRAMATIC QUOTATION SECTION */
-    .quote-section {
-      max-width: 940px;
-      margin-top: 16px;
-      padding: 0 20px;
-    }
-
-    .quote-text {
-      font-family: 'Cormorant Garamond', Georgia, serif;
-      font-style: italic;
-      font-size: 24px;
-      font-weight: 600;
-      line-height: 1.35;
-      color: #2b302c;
-    }
-
-    .quote-attribution {
-      font-family: 'Cinzel', serif;
-      font-size: 13.5px;
-      letter-spacing: 0.2em;
-      color: var(--wbhs-crimson);
-      margin-top: 4px;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-
-    /* THEATRICAL DETAILS & CAST HIGHLIGHTS GRID */
-    .theatre-meta-grid {
-      width: 100%;
-      max-width: 1020px;
+    /* EDITORIAL MANIFESTO BLOCK */
+    .manifesto-zone {
+      position: relative;
+      z-index: 10;
       display: grid;
-      grid-template-columns: 1fr 1.3fr 1fr;
-      gap: 16px;
-      margin-top: 12px;
-      border-top: 1.5px solid rgba(197, 160, 89, 0.5);
-      border-bottom: 1.5px solid rgba(197, 160, 89, 0.5);
-      padding: 12px 10px;
-      background: rgba(255, 255, 255, 0.45);
+      grid-template-columns: 1.4fr 1fr;
+      gap: 40px;
+      border-top: 3px solid var(--wbhs-green);
+      padding-top: 24px;
+      text-align: left;
     }
 
-    .meta-box {
+    .manifesto-body {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 26px;
+      line-height: 1.25;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .manifesto-body strong {
+      color: var(--wbhs-green);
+      font-weight: 700;
+    }
+
+    .manifesto-body em {
+      color: var(--wbhs-red);
+      font-style: italic;
+    }
+
+    .company-identity-badge {
       display: flex;
       flex-direction: column;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .meta-box.middle {
-      border-left: 1px solid rgba(197, 160, 89, 0.4);
-      border-right: 1px solid rgba(197, 160, 89, 0.4);
-      padding: 0 14px;
-    }
-
-    .meta-label {
-      font-family: 'Cinzel', serif;
-      font-size: 12px;
-      letter-spacing: 0.25em;
-      text-transform: uppercase;
-      color: var(--wbhs-green);
-      font-weight: 800;
-      margin-bottom: 3px;
-    }
-
-    .meta-value-main {
-      font-family: 'Playfair Display', serif;
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--wbhs-crimson);
-      letter-spacing: 0.02em;
-    }
-
-    .meta-value-sub {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 16px;
-      color: #3f4742;
-      font-weight: 600;
-    }
-
-    /* FOOTER / ADMISSION & VENUE BAR */
-    .footer-section {
-      width: 100%;
-      margin-top: 10px;
-      padding-bottom: 4px;
-    }
-
-    .venue-strip {
-      background: var(--wbhs-green);
-      border: 1.5px solid var(--wbhs-gold);
-      padding: 10px 24px;
-      display: flex;
       justify-content: space-between;
-      align-items: center;
-      color: #faf5ea;
-      border-radius: 3px;
-      box-shadow: 0 4px 12px rgba(2, 54, 42, 0.25);
+      border-left: 2px solid var(--wbhs-gold);
+      padding-left: 28px;
     }
 
-    .venue-title {
-      font-family: 'Cinzel', serif;
-      font-size: 16px;
-      letter-spacing: 0.16em;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-
-    .venue-address {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 16px;
-      color: #e4dfd3;
-      letter-spacing: 0.05em;
-    }
-
-    .ticket-badge {
-      background: var(--wbhs-red);
-      border: 1px solid var(--wbhs-gold);
-      padding: 5px 16px;
+    .ensemble-role {
       font-family: 'Cinzel', serif;
       font-size: 13px;
-      letter-spacing: 0.14em;
-      font-weight: 700;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
-      color: #fff;
+      color: var(--wbhs-green);
+      font-weight: 900;
+      margin-bottom: 4px;
     }
 
-    .colophon {
+    .ensemble-desc {
+      font-family: 'IM Fell English', serif;
+      font-size: 16px;
+      color: #38423d;
+      line-height: 1.35;
+    }
+
+    /* FOOTER STAMP */
+    .footer-stamp {
+      position: relative;
+      z-index: 10;
       display: flex;
       justify-content: space-between;
-      width: 100%;
-      padding: 8px 12px 0;
+      align-items: center;
+      background: var(--wbhs-dark-green);
+      color: var(--paper);
+      padding: 16px 26px;
+      border-radius: 2px;
+      margin-top: 10px;
+    }
+
+    .footer-left {
+      text-align: left;
+    }
+
+    .footer-tagline {
       font-family: 'Cinzel', serif;
-      font-size: 11px;
+      font-size: 14px;
       letter-spacing: 0.18em;
-      color: #5a665f;
       text-transform: uppercase;
+      font-weight: 900;
+      color: #faf5eb;
+    }
+
+    .footer-detail {
+      font-family: 'IM Fell English', serif;
+      font-style: italic;
+      font-size: 15px;
+      color: var(--wbhs-gold);
+      margin-top: 2px;
+    }
+
+    .footer-right {
+      text-align: right;
+      font-family: 'Cinzel', serif;
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #fff;
     }
   </style>
 </head>
 <body>
 
-  <div class="poster-container">
-    <!-- Ornate Borders -->
-    <div class="border-outer"></div>
-    <div class="border-gold-thin"></div>
-    <div class="border-inner-crimson"></div>
-
-    <!-- Corner Accents -->
-    <div class="corner-ornament top-left">&#10047;</div>
-    <div class="corner-ornament top-right">&#10047;</div>
-    <div class="corner-ornament bottom-left">&#10047;</div>
-    <div class="corner-ornament bottom-right">&#10047;</div>
-
-    <div class="poster-content">
-      
-      <!-- TOP HEADER -->
-      <div class="header-section">
-        <div class="school-crest-row">
-          <img src="assets/wbhs_crest.svg" alt="Westlake Boys High School Crest" class="crest-icon">
-          <div>
-            <div class="school-bar">Westlake Boys High School</div>
-            <div class="company-title">FOWL PLAY</div>
-          </div>
-          <img src="assets/wbhs_crest.svg" alt="Westlake Boys High School Crest" class="crest-icon">
-        </div>
-
-        <div class="motto-banner">
-          <div class="line"></div>
-          <div class="motto-text">Virtute Experiamur &mdash; Let Courage Be Thy Test</div>
-          <div class="line"></div>
-        </div>
-
-        <div class="pres-badge">Westlake Boys Shakespeare Company &bull; 2026 Season</div>
+  <div class="poster-sheet">
+    
+    <!-- MASTHEAD -->
+    <div class="masthead">
+      <div class="school-id">
+        <div class="school-title">Westlake Boys High School</div>
+        <div class="school-sub">Te Kura Tuarua o Ngā Taitamatāne o Ururoto &bull; Drama &amp; Theatre Arts</div>
       </div>
-
-      <!-- MAIN TITLE -->
-      <div class="title-section">
-        <div class="sub-head-lead">The Roost of Wit &bull; A Motley Romp</div>
-        <div class="main-title">
-          <span class="title-fowl">FOWL</span>
-          <span class="title-play">PLAY</span>
-        </div>
-        <div class="genre-banner">
-          <span class="genre-ornament">&#9884;</span>
-          <span>A High-Spirited Shakespearean Comedy</span>
-          <span class="genre-ornament">&#9884;</span>
-        </div>
+      <div class="motto-stamp">
+        <div>Official Company Poster</div>
+        <div class="motto-latin">Virtute Experiamur</div>
       </div>
-
-      <!-- CENTER ART STAGE -->
-      <div class="artwork-stage">
-        <div class="art-frame">
-          <img src="assets/fowl_play_woodcut_art.png" alt="Fowl Play Elizabethan Rooster Art" class="art-image">
-          <div class="art-caption-ribbon">Featuring the Westlake Performing Troupe</div>
-        </div>
-      </div>
-
-      <!-- DRAMATIC QUOTE -->
-      <div class="quote-section">
-        <p class="quote-text">
-          &ldquo;Lord, what fools these mortals be! The bird of dawning singeth all night long, and comedy hath crown&rsquo;d our stage.&rdquo;
-        </p>
-        <div class="quote-attribution">&mdash; Adapted from A Midsummer Night&rsquo;s Dream &amp; Hamlet</div>
-      </div>
-
-      <!-- METADATA & CAST -->
-      <div class="theatre-meta-grid">
-        <div class="meta-box">
-          <span class="meta-label">Season Dates</span>
-          <span class="meta-value-main">18 &ndash; 21 June 2026</span>
-          <span class="meta-value-sub">Evening Shows 7:00 PM &bull; Sat Matinee 2:00 PM</span>
-        </div>
-        <div class="meta-box middle">
-          <span class="meta-label">Venue</span>
-          <span class="meta-value-main">Westlake Boys Auditorium</span>
-          <span class="meta-value-sub">30 Forrest Hill Road, Takapuna, Auckland</span>
-        </div>
-        <div class="meta-box">
-          <span class="meta-label">Direction &amp; Design</span>
-          <span class="meta-value-main">Westlake Drama Arts</span>
-          <span class="meta-value-sub">Full Orchestra &amp; Student Technicians</span>
-        </div>
-      </div>
-
-      <!-- FOOTER STRIP -->
-      <div class="footer-section">
-        <div class="venue-strip">
-          <div>
-            <div class="venue-title">Westlake Productions &bull; SGCNZ Regional Honorees</div>
-            <div class="venue-address">Bookings online via iTicket &bull; School Box Office open daily from 8:30 AM</div>
-          </div>
-          <div class="ticket-badge">Tickets &bull; $15 &ndash; $25</div>
-        </div>
-        <div class="colophon">
-          <span>Printed by Westlake Boys High School Drama Dept</span>
-          <span>Te Kura Tuarua o Ng&amacron; Taitamat&amacron;ne o Ururoto</span>
-          <span>In Arte Excellere</span>
-        </div>
-      </div>
-
     </div>
+
+    <!-- MAIN BRAND TITLE -->
+    <div class="hero-title-zone">
+      <div class="category-kicker">Shakespeare Comedy &amp; Satire Company</div>
+      <div class="title-display">
+        FOWL
+        <span class="title-row-play">PLAY.</span>
+      </div>
+    </div>
+
+    <!-- HERO ARTWORK: High-impact screenprinted woodblock style SVG -->
+    <div class="artwork-stage">
+      <svg class="screenprint-art" viewBox="0 0 780 620" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <!-- Halftone dot pattern -->
+          <pattern id="halftone" width="12" height="12" patternUnits="userSpaceOnUse">
+            <circle cx="6" cy="6" r="2.2" fill="#045643" opacity="0.35"/>
+          </pattern>
+        </defs>
+
+        <!-- Dynamic diagonal split background in Westlake green and cream -->
+        <rect x="0" y="0" width="780" height="620" fill="#045643"/>
+        <polygon points="0,0 780,0 780,480 0,220" fill="#f4ecdc"/>
+        <rect x="0" y="0" width="780" height="620" fill="url(#halftone)"/>
+
+        <!-- Large Graphic Rooster / Company Totem in Bold Woodblock Style -->
+        <!-- Tail Feathers in Sweeping Crimson and Dark Green Curves -->
+        <g id="woodcut-cock">
+          <!-- Back tail plume 1 -->
+          <path d="M 280,440 C 210,430 110,380 60,260 C 40,210 60,150 110,135 C 130,130 140,155 125,190 C 105,250 160,320 250,380 Z" fill="#c72037"/>
+          <!-- Back tail plume 2 -->
+          <path d="M 270,455 C 180,470 90,435 50,340 C 35,305 45,260 75,250 C 95,245 100,270 90,300 C 80,360 160,420 250,425 Z" fill="#022b22"/>
+          <!-- Back tail plume 3 (Gold) -->
+          <path d="M 290,420 C 260,370 200,260 190,180 C 185,140 210,125 225,140 C 240,165 240,240 275,340 Z" fill="#c5a059"/>
+
+          <!-- Body Silhouette in Deep Forest Green -->
+          <path d="M 260,400 C 255,340 285,280 340,240 C 390,200 410,290 400,355 C 395,430 345,510 250,520 C 275,480 270,430 260,400 Z" fill="#045643"/>
+
+          <!-- Giant Stylized Elizabethan Lace Ruff (Hand-drawn look) -->
+          <g transform="translate(360, 240)">
+            <path d="M 0,0 L 30,-45 L 60,-20 Z" fill="#f4ecdc" stroke="#045643" stroke-width="3"/>
+            <path d="M 0,0 L 60,-20 L 75,15 Z" fill="#ffffff" stroke="#045643" stroke-width="3"/>
+            <path d="M 0,0 L 75,15 L 60,50 Z" fill="#f4ecdc" stroke="#045643" stroke-width="3"/>
+            <path d="M 0,0 L 60,50 L 30,70 Z" fill="#ffffff" stroke="#045643" stroke-width="3"/>
+            <path d="M 0,0 L 30,70 L -5,75 Z" fill="#f4ecdc" stroke="#045643" stroke-width="3"/>
+            <path d="M 0,0 L -5,75 L -35,60 Z" fill="#ffffff" stroke="#045643" stroke-width="3"/>
+            <path d="M 0,0 L -35,60 L -55,30 Z" fill="#f4ecdc" stroke="#045643" stroke-width="3"/>
+            <path d="M 0,0 L -55,30 L -55,-10 Z" fill="#ffffff" stroke="#045643" stroke-width="3"/>
+            <path d="M 0,0 L -55,-10 L -40,-40 Z" fill="#f4ecdc" stroke="#045643" stroke-width="3"/>
+            <path d="M 0,0 L -40,-40 L 0,-50 Z" fill="#ffffff" stroke="#045643" stroke-width="3"/>
+            <circle cx="0" cy="5" r="10" fill="#c72037"/>
+          </g>
+
+          <!-- Head & Beak -->
+          <path d="M 360,230 C 350,185 390,150 430,165 C 450,170 470,190 470,215 C 470,235 440,250 410,250 C 380,250 365,245 360,230 Z" fill="#045643"/>
+          <!-- Sharp Powerful Beak (Gold) -->
+          <polygon points="465,190 535,208 465,225" fill="#c5a059" stroke="#045643" stroke-width="2"/>
+          
+          <!-- Jagged Crimson Comb / Jester's Crown -->
+          <path d="M 380,165 C 375,120 405,100 420,120 C 435,95 460,95 465,125 C 480,110 500,120 495,150 C 510,160 505,185 480,190 C 450,180 410,170 380,165 Z" fill="#c72037"/>
+
+          <!-- Crimson Wattle -->
+          <path d="M 450,230 C 470,250 470,290 445,295 C 425,300 420,270 430,235 Z" fill="#c72037"/>
+
+          <!-- Eye with focus -->
+          <circle cx="430" cy="195" r="9" fill="#ffffff"/>
+          <circle cx="433" cy="194" r="4.5" fill="#022b22"/>
+
+          <!-- Wing extending forward holding the Comedy/Tragedy Mask -->
+          <path d="M 350,310 C 410,320 460,370 470,430 C 475,470 445,490 410,470 C 370,450 340,390 350,310 Z" fill="#022b22"/>
+
+          <!-- Iconic Theatrical Mask Held in Claw -->
+          <g transform="translate(480, 390) rotate(-10)">
+            <path d="M -45,-60 C 0,-75 45,-75 60,-55 C 75,-30 75,25 45,60 C 20,85 -20,85 -45,60 C -70,25 -70,-30 -45,-60 Z" 
+                  fill="#f4ecdc" stroke="#045643" stroke-width="4"/>
+            <!-- Center dividing line -->
+            <line x1="5" y1="-70" x2="5" y2="80" stroke="#c5a059" stroke-width="3"/>
+            <!-- Grinning side -->
+            <path d="M -35,-25 C -30,-40 -12,-40 -8,-25" fill="none" stroke="#045643" stroke-width="5" stroke-linecap="round"/>
+            <path d="M -30,25 C -15,45 10,45 25,25" fill="none" stroke="#045643" stroke-width="5" stroke-linecap="round"/>
+            <!-- Frowning side in Crimson -->
+            <ellipse cx="32" cy="-28" rx="10" ry="8" fill="#c72037"/>
+            <path d="M 15,35 C 28,18 48,18 60,35" fill="none" stroke="#c72037" stroke-width="5" stroke-linecap="round"/>
+          </g>
+
+          <!-- Perch Bar / Ground Line -->
+          <line x1="80" y1="560" x2="700" y2="560" stroke="#c5a059" stroke-width="6" stroke-linecap="round"/>
+          <circle cx="80" cy="560" r="14" fill="#c72037"/>
+          <circle cx="700" cy="560" r="14" fill="#045643"/>
+        </g>
+
+        <!-- Bold Graphic Monogram in Corner -->
+        <g transform="translate(640, 80)">
+          <rect x="0" y="0" width="85" height="85" fill="#c72037"/>
+          <text x="42" y="58" font-family="'Cinzel', serif" font-weight="900" font-size="44" fill="#ffffff" text-anchor="middle">FP</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- MANIFESTO & COMPANY INFO -->
+    <div class="manifesto-zone">
+      <div class="manifesto-body">
+        <strong>Fowl Play</strong> is Westlake Boys High School&rsquo;s resident Shakespearean comedy troupe. We dismantle Elizabethan convention with <em>audacity, physical farce, and razor wit</em> &mdash; proving that courage on stage begins with the freedom to play the fool.
+      </div>
+      <div class="company-identity-badge">
+        <div>
+          <div class="ensemble-role">Ensemble &bull; Focus</div>
+          <div class="ensemble-desc">Years 9&ndash;13 Acting Troupe &bull; Comedic Devising, Stage Clowning &amp; Physical Theatre</div>
+        </div>
+        <div>
+          <div class="ensemble-role">Affiliation</div>
+          <div class="ensemble-desc">Westlake Performing Arts &bull; SGCNZ Regional &amp; National Festival Participants</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FOOTER STAMP -->
+    <div class="footer-stamp">
+      <div class="footer-left">
+        <div class="footer-tagline">Westlake Boys Shakespeare Company &bull; Auckland, New Zealand</div>
+        <div class="footer-detail">Auditions held annually in Term 1 &bull; 30 Forrest Hill Road, Takapuna</div>
+      </div>
+      <div class="footer-right">
+        <div>Virtute Experiamur</div>
+        <div style="color: var(--wbhs-gold); margin-top:2px;">Est. 1962 &bull; WBHS Drama</div>
+      </div>
+    </div>
+
   </div>
 
 </body>

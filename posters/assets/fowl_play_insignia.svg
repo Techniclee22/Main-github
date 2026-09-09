@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg-circle { fill: #045643; }
+      .crest-gold { fill: #C5A059; stroke: #C5A059; }
+      .crest-red { fill: #C72037; }
+      .crest-white { fill: #FAF5EB; }
+    </style>
+  </defs>
+
+  <!-- Background decorative geometric ring -->
+  <circle cx="300" cy="300" r="280" fill="none" stroke="#C5A059" stroke-width="2" stroke-dasharray="6 6" opacity="0.6"/>
+  <circle cx="300" cy="300" r="260" fill="none" stroke="#045643" stroke-width="3"/>
+  <circle cx="300" cy="300" r="248" fill="#FAF5EC"/>
+
+  <!-- Bold Graphic Silhouette: The Elizabethan Rooster / Cock-Herald -->
+  <g id="rooster-emblem">
+    <!-- Body & Cape / Ruff Silhouette in Westlake Green & Red -->
+    <!-- Large sweeping tail feathers in alternating brand colors -->
+    <!-- Tail Feather 1 -->
+    <path d="M 280,360 C 240,350 160,320 130,220 C 120,180 135,130 170,120 C 185,115 190,135 180,165 C 165,210 205,270 260,310 Z" fill="#045643"/>
+    <!-- Tail Feather 2 -->
+    <path d="M 270,370 C 220,380 140,360 100,280 C 85,250 90,210 115,200 C 130,195 135,215 130,240 C 120,290 175,340 250,340 Z" fill="#C72037"/>
+    <!-- Tail Feather 3 -->
+    <path d="M 265,390 C 200,420 130,390 105,330 C 95,305 110,290 125,295 C 145,340 195,375 255,365 Z" fill="#02362A"/>
+    <!-- Tail Feather 4 (Gold accent) -->
+    <path d="M 290,345 C 270,310 230,220 220,160 C 215,130 235,115 245,130 C 255,150 255,210 280,290 Z" fill="#C5A059"/>
+
+    <!-- Rooster Chest & Body -->
+    <path d="M 270,330 C 265,280 290,230 330,200 C 370,170 380,240 375,290 C 370,350 330,410 260,420 C 280,390 275,350 270,330 Z" fill="#045643"/>
+
+    <!-- Formal Elizabethan Pleated Ruff Collar (Stylized graphic fan) -->
+    <g id="ruff-collar" transform="translate(340, 205)">
+      <!-- Fan folds -->
+      <path d="M 0,0 L 25,-35 L 45,-15 Z" fill="#FAF5EB" stroke="#C5A059" stroke-width="2"/>
+      <path d="M 0,0 L 45,-15 L 55,10 Z" fill="#FFFFFF" stroke="#C5A059" stroke-width="2"/>
+      <path d="M 0,0 L 55,10 L 45,35 Z" fill="#FAF5EB" stroke="#C5A059" stroke-width="2"/>
+      <path d="M 0,0 L 45,35 L 25,50 Z" fill="#FFFFFF" stroke="#C5A059" stroke-width="2"/>
+      <path d="M 0,0 L 25,50 L 0,55 Z" fill="#FAF5EB" stroke="#C5A059" stroke-width="2"/>
+      <path d="M 0,0 L 0,55 L -25,45 Z" fill="#FFFFFF" stroke="#C5A059" stroke-width="2"/>
+      <path d="M 0,0 L -25,45 L -40,25 Z" fill="#FAF5EB" stroke="#C5A059" stroke-width="2"/>
+      <path d="M 0,0 L -40,25 L -45,-5 Z" fill="#FFFFFF" stroke="#C5A059" stroke-width="2"/>
+      <path d="M 0,0 L -45,-5 L -30,-30 Z" fill="#FAF5EB" stroke="#C5A059" stroke-width="2"/>
+      <path d="M 0,0 L -30,-30 L 0,-40 Z" fill="#FFFFFF" stroke="#C5A059" stroke-width="2"/>
+      <circle cx="0" cy="5" r="8" fill="#C72037"/>
+    </g>
+
+    <!-- Rooster Head & Proud Beak -->
+    <path d="M 345,195 C 335,160 365,135 395,145 C 410,150 425,165 425,185 C 425,200 405,210 380,210 C 360,210 348,205 345,195 Z" fill="#045643"/>
+    
+    <!-- Sharp Beak -->
+    <path d="M 420,165 L 475,178 L 422,192 Z" fill="#C5A059" stroke="#045643" stroke-width="1.5"/>
+    
+    <!-- Cock's Comb (Regal Crimson Crown-like crest) -->
+    <path d="M 365,145 C 360,110 380,95 390,110 C 400,90 420,90 425,115 C 435,100 450,110 445,135 C 455,140 455,160 435,165 C 410,155 385,150 365,145 Z" fill="#C72037"/>
+
+    <!-- Wattle (Crimson) -->
+    <path d="M 410,195 C 425,210 425,240 405,245 C 390,250 385,225 395,200 Z" fill="#C72037"/>
+
+    <!-- Striking Eye -->
+    <circle cx="395" cy="168" r="7" fill="#FAF5EB"/>
+    <circle cx="397" cy="167" r="3.5" fill="#02362A"/>
+
+    <!-- Wing / Arm holding Theatre Mask -->
+    <!-- Wing shoulder -->
+    <path d="M 330,260 C 370,270 410,310 415,360 C 418,390 395,410 365,395 C 335,380 320,330 330,260 Z" fill="#02362A" stroke="#C5A059" stroke-width="2"/>
+
+    <!-- Theatrical Mask (Held proudly) -->
+    <g id="theatre-mask" transform="translate(415, 330) rotate(-15)">
+      <!-- Mask face -->
+      <path d="M -35,-50 C 0,-60 35,-60 45,-45 C 55,-25 55,20 35,45 C 15,65 -15,65 -35,45 C -55,20 -55,-25 -35,-50 Z" 
+            fill="#FAF5EB" stroke="#045643" stroke-width="3"/>
+      <!-- Split comedy / tragedy brow line -->
+      <path d="M 0,-55 L 0,60" stroke="#C5A059" stroke-width="2" stroke-dasharray="3 3"/>
+      <!-- Smiling eye left -->
+      <path d="M -28,-18 C -24,-28 -10,-28 -6,-18" fill="none" stroke="#045643" stroke-width="3.5" stroke-linecap="round"/>
+      <!-- Dramatic eye right -->
+      <ellipse cx="20" cy="-20" rx="8" ry="6" fill="#C72037"/>
+      <!-- Expressive Mouth: half smirk, half open -->
+      <path d="M -22,20 C -10,36 15,36 30,15 C 20,24 0,26 -22,20 Z" fill="#045643"/>
+      <!-- Crown atop the mask -->
+      <path d="M -25,-48 L -15,-62 L 0,-50 L 15,-62 L 25,-48 Z" fill="#C5A059"/>
+    </g>
+
+    <!-- Strong legs / perch -->
+    <path d="M 300,415 L 290,480 L 265,495 M 290,480 L 305,498 M 290,480 L 325,488" fill="none" stroke="#C5A059" stroke-width="5" stroke-linecap="round"/>
+    <path d="M 340,410 L 350,475 L 330,495 M 350,475 L 365,498 M 350,475 L 385,485" fill="none" stroke="#C5A059" stroke-width="5" stroke-linecap="round"/>
+
+    <!-- Perch beam / Classical scroll bar -->
+    <rect x="180" y="490" width="240" height="12" rx="6" fill="#045643" stroke="#C5A059" stroke-width="2"/>
+    <circle cx="180" cy="496" r="10" fill="#C72037" stroke="#C5A059" stroke-width="2"/>
+    <circle cx="420" cy="496" r="10" fill="#C72037" stroke="#C5A059" stroke-width="2"/>
+  </g>
+
+  <!-- Laurel wreath accents -->
+  <g fill="none" stroke="#045643" stroke-width="2.5" stroke-linecap="round" opacity="0.85">
+    <!-- Left branch -->
+    <path d="M 120,440 C 80,360 80,240 120,160"/>
+    <path d="M 115,400 C 95,395 90,380 98,375"/>
+    <path d="M 100,350 C 80,345 75,330 85,325"/>
+    <path d="M 92,300 C 72,295 68,280 80,272"/>
+    <path d="M 96,250 C 78,242 76,228 88,222"/>
+    <path d="M 108,200 C 92,190 94,175 106,170"/>
+
+    <!-- Right branch -->
+    <path d="M 480,440 C 520,360 520,240 480,160"/>
+    <path d="M 485,400 C 505,395 510,380 502,375"/>
+    <path d="M 500,350 C 520,345 525,330 515,325"/>
+    <path d="M 508,300 C 528,295 532,280 520,272"/>
+    <path d="M 504,250 C 522,242 524,228 512,222"/>
+    <path d="M 492,200 C 508,190 506,175 494,170"/>
+  </g>
+</svg>

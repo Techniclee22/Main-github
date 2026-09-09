@@ -1,31 +1,40 @@
-# Westlake Boys Shakespeare Company — Theatrical Poster Suite
+# Westlake Boys Shakespeare Company — Company Brand Posters
 
-This suite contains two fine-art theatrical posters for the **Westlake Boys Shakespeare Company** (Te Kura Tuarua o Ngā Taitamatāne o Ururoto, Forrest Hill, Takapuna, Auckland):
+Official brand & identity posters designed for **Westlake Boys High School** Drama & Theatre Arts Department, celebrating their two Shakespeare ensembles:
 
-1. **Fowl Play** — A high-spirited Shakespearean comedy.
-2. **Bards of a Feather** — A classical ensemble of Shakespearean tragedy and history.
-
----
-
-## Brand Palette & Heraldic Identity
-
-The designs strictly follow Westlake Boys High School's official branding and heraldry:
-- **Westlake Forest Green**: `#045643` (Deep hunter green as seen on school blazers and the official crest)
-- **Westlake Crimson Red**: `#C72037` (Stanley / House crimson and shield accent)
-- **Antique Gold**: `#C5A059` / `#D4AF37` (Trim and filigree)
-- **Aged Parchment**: `#F9F5EC` (Warm textured print stock)
-- **School Motto**: *Virtute Experiamur* ("Let Courage Be Thy Test")
-- **Heraldic Motif**: Shield emblem featuring the North Shore Lake Pupuke Swan, mural crown, and motto scroll.
+1. **Fowl Play** — The Shakespeare Comedy & Satire Company
+2. **Bards of a Feather** — The Classical Verse & Tragedy Company
 
 ---
 
-## Design Files & Formats
+## Design Principles
 
-- `posters/fowl_play_poster.html`: Vector-based, print-ready HTML/CSS layout (1200 × 1700 px).
-- `posters/fowl_play_poster.png`: High-resolution 300 DPI rendered poster.
-- `posters/bards_of_a_feather_poster.html`: Vector-based, print-ready HTML/CSS layout (1200 × 1700 px).
-- `posters/bards_of_a_feather_poster.png`: High-resolution 300 DPI rendered poster.
-- `posters/index.html`: Showcase board presenting both posters side-by-side with palette specifications and direct links.
-- `posters/assets/wbhs_crest.svg`: Official Westlake Boys crest reconstructed in scalable SVG vector format.
-- `posters/assets/fowl_play_woodcut_art.png`: Central Renaissance woodcut illustration of the Elizabethan rooster with crown, ruff, and comedy/tragedy mask.
-- `posters/assets/bards_of_a_feather_woodcut_art.png`: Central intaglio illustration of the Shakespearean swan and raven over the First Folio and crimson quill.
+- **Pure Graphic Design (Zero AI Imagery):** Built with bold, screenprinted editorial typography, clean linocut vector artwork, halftone textures, and authentic risograph paper aesthetics.
+- **Authentic Theatre Company Branding:** Designed specifically as enduring theatre company identity posters (troupe focus, ensemble manifesto, artistic affiliation, and annual audition notices), distinct from single-production event flyers.
+- **Official WBHS School Palette:**
+  - **Westlake Forest Green:** `#045643`
+  - **Westlake Deep Crimson:** `#C72037`
+  - **Westlake Dark Pine:** `#022B22`
+  - **Heraldic Gold:** `#C5A059`
+  - **Warm Screenprint Paper:** `#F4ECDC`
+- **School Mottos & Heritage:**
+  - *Virtute Experiamur* ("Let Courage Be Thy Test")
+  - *Te Kura Tuarua o Ngā Taitamatāne o Ururoto* (Westlake Boys High School)
+  - Founded 1962, Takapuna, Auckland, New Zealand
+
+---
+
+## File Structure
+
+```
+posters/
+├── index.html                           # Gallery overview page
+├── fowl_play_poster.html                # High-res print HTML for Fowl Play
+├── fowl_play_poster.png                 # 1240 x 1740 render (300 DPI ready)
+├── bards_of_a_feather_poster.html       # High-res print HTML for Bards of a Feather
+├── bards_of_a_feather_poster.png        # 1240 x 1740 render (300 DPI ready)
+└── assets/
+    ├── wbhs_crest.svg                   # Westlake Boys official school crest
+    ├── fowl_play_insignia.svg           # Fowl Play emblem
+    └── bards_of_a_feather_insignia.svg  # Bards of a Feather emblem
+```
