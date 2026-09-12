@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "build": "next build",
     "check": "npm --prefix desktop run check",
     "test": "npm --prefix desktop test",
     "start": "npm --prefix desktop start",
