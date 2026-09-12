@@ -302,6 +302,73 @@ Existing blog pillars that pair well with posts:
 
 ---
 
+## Interacting With Other Accounts (without being cheesy)
+
+Goal: earn likes and follows through **specific, useful replies** — not cheerleading and not soft promo.
+
+### What works
+
+**1. Notice one concrete thing**  
+Skip “amazing art!!” Say something only someone who looked would say:
+
+- “The helmet silhouette reads from across the table — that’s hard to get right.”
+- “Infernis + soft palette is a fun contrast; I’d trust this as a Hope face on a sheet.”
+- “That adversary feature wants a Fear spend — I’d run it as the room’s second beat.”
+
+People like (and sometimes follow) replies that prove you *read* the post.
+
+**2. Aim at accounts your size → ~10× you**  
+With a small follower count, reply to **~200–5k** artists/GMs more than mega accounts. Your reply can actually be seen. Mid-tier creators still notice thoughtful comments.
+
+**3. Reply early on posts that invite play**  
+PNG raffles, “reply with your class,” magic-item assign threads, “share your OC.”  
+Participate with a **real tiny contribution** (name + class + one line), no link. That’s how small accounts get profile clicks.
+
+**4. Quote with *your* related piece — rarely**  
+Once or twice a week max. QT a Daggerheart character post with your filled sheet for a similar heritage, caption like:
+
+> Same energy we wanted for Veil’s foldable sheet — front create, back SRD.
+
+That’s peer conversation. Daily QTs of strangers with “check my art” is the cheesy version.
+
+**5. Help, don’t pitch**  
+On rules/GM questions (Fear, Experiences, environments — topics you already blog): answer in the thread in 2–4 sentences.  
+No link unless someone asks “where can I read more?” Then one link.
+
+**6. Follow the people you’d steal ideas from**  
+Artists whose silhouettes you like, DH GMs posting session notes, sheet designers. Like their **best** posts (not everything). Mutual follows happen from taste overlap, not follow-for-follow.
+
+### What feels annoying (avoid)
+
+| Move | Why it fails |
+| --- | --- |
+| “Great work! Follow me for more 🙏” | Pure extraction |
+| Link in first reply | Reads as spam |
+| Same emoji reply on 20 posts | Obvious farming |
+| Jumping AI-art drama for engagement | Wrong room for table tools |
+| QT every big account with your Gumroad | Burned fast in TTRPG circles |
+| “First attempt feedback pls” on unfinished duds | Asks for labor, gives nothing |
+
+### Simple daily habit (~15 min)
+
+1. Find **3–5** DH/TTRPG/art posts you genuinely like
+2. Leave **one specific reply** each (design, table use, or rules)
+3. Like only posts you’d actually bookmark
+4. Post **your** character or tool drop separately — don’t hitch every reply to a self-promo
+
+Ratio to aim for: **~3 useful replies for every 1 original post**.
+
+### Highest-leverage reply styles (characters + tools)
+
+- On character art → “This would sit clean on a foldable sheet; heritage reads instantly.”
+- On GM tips → add one concrete table example (Fear/Experience blogs translated into a reply)
+- On adversary/stat posts → one suggestion for a Fear-cost feature or scene beat
+- On someone’s PC → ask one good question (“Hope instinct or Fear instinct for them?”) — questions earn profile visits
+
+Non-cheesy loop: **be useful in their thread, look like a peer who makes table stuff, let the follow happen when they check your pinned character+sheet.**
+
+---
+
 ## Optional Next Step
 
 Write a dedicated **Grok skill prompt** (output format, negative prompts, caption rules) so every generation lands in this system without manual rewriting.
